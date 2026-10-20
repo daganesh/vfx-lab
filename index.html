@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Draft Heroes - VFX Effects Lab v1.1</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: #0b0f19;
+      color: #f5f5f5;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+    }
+    #app {
+      display: flex;
+      width: 100%;
+      height: 100%;
+    }
+    #sidebar {
+      width: 290px;
+      background: #121826;
+      border-right: 1px solid #2a3447;
+      display: flex;
+      flex-direction: column;
+      z-index: 10;
+    }
+    .header {
+      padding: 16px;
+      border-bottom: 1px solid #2a3447;
+      background: #1a2332;
+    }
+    .header h1 {
+      font-size: 1.1rem;
+      color: #00bcd4;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+    .header p {
+      font-size: 0.75rem;
+      color: #8a99ad;
+      margin-top: 4px;
+    }
+    .texture-upload-box {
+      padding: 10px 16px;
+      border-bottom: 1px solid #2a3447;
+      background: #161e2e;
+    }
+    .texture-upload-box label {
+      display: block;
+      font-size: 0.75rem;
+      color: #00e5ff;
+      margin-bottom: 6px;
+      font-weight: bold;
+    }
+    .texture-upload-box input {
+      font-size: 0.75rem;
+      color: #c5d1e0;
+      width: 100%;
+    }
+    .effect-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 8px;
+    }
+    .effect-btn {
+      width: 100%;
+      text-align: left;
+      padding: 10px 12px;
+      margin-bottom: 6px;
+      background: #1a2233;
+      border: 1px solid #2a354d;
+      border-radius: 6px;
+      color: #c5d1e0;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .effect-btn:hover {
+      background: #243047;
+      color: #ffffff;
+      border-color: #00bcd4;
+    }
+    .effect-btn.active {
+      background: #00bcd4;
+      color: #0b0f19;
+      border-color: #00e5ff;
+      font-weight: 700;
+    }
+    .stack-toggle-container {
+      padding: 10px 16px;
+      border-top: 1px solid #2a3447;
+      background: #121826;
+    }
+    .stack-toggle-container label {
+      font-size: 0.8rem;
+      color: #ffd700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: bold;
+    }
+    #viewport {
+      flex: 1;
+      position: relative;
+      height: 100%;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+    }
+    #gui-container {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      z-index: 20;
+    }
+    .fps-counter {
+      position: absolute;
+      bottom: 12px;
+      left: 12px;
+      background: rgba(18, 24, 38, 0.85);
+      backdrop-filter: blur(4px);
+      border: 1px solid #2a3447;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 0.8rem;
+      color: #00e5ff;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="sidebar">
+      <div class="header">
+        <h1>Draft Heroes VFX Lab</h1>
+        <p>Effects, Shaders & Layer Stacking</p>
+      </div>
+
+      <!-- FR 6: Custom Card Image Uploader -->
+      <div class="texture-upload-box">
+        <label for="card-image-input">🖼️ Replace Card Face Texture:</label>
+        <input type="file" id="card-image-input" accept="image/*" />
+      </div>
+
+      <div class="effect-list" id="effect-list"></div>
+
+      <!-- FR 4: Multi-effect Combination Toggle -->
+      <div class="stack-toggle-container">
+        <label>
+          <input type="checkbox" id="multi-stack-toggle" />
+          ⚡ Combine Multiple Effects
+        </label>
+      </div>
+    </div>
+
+    <div id="viewport">
+      <div id="canvas-container"></div>
+      <div id="gui-container"></div>
+      <div class="fps-counter" id="fps-counter">FPS: --</div>
+    </div>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
