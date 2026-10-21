@@ -1,187 +1,102 @@
 import * as THREE from 'three';
-import { CardEffect } from './CardEffect.js';
+import { BaseEffect } from './BaseEffect.js';
 
-export class WoodenCardEffect extends CardEffect {
+const WOOD_TYPES = {
+  mahogany: { color: '#4a150b', grain: '#2b0a04', specular: '#ffaa88' },
+  oak: { color: '#8b5a2b', grain: '#4a2e11', specular: '#ffddaa' },
+  walnut: { color: '#3d2314', grain: '#1f1008', specular: '#d4aa7d' },
+  birch: { color: '#d7c4a1', grain: '#9c845c', specular: '#ffffff' },
+  ebony: { color: '#1a1412', grain: '#0a0706', specular: '#a89f91' }
+};
+
+// Wood is a property of the card surface, so (like the foil) it is injected into
+// the shared front material: ring grain, varnish highlight and a gold rim shimmer.
+export class WoodenCardEffect extends BaseEffect {
   static id = 'wooden-card';
   static label = '🪵 Wooden Card & Carved Grain';
-
-  static WOOD_TYPES = {
-    mahogany: { color: '#4a150b', grain: '#2b0a04', specular: '#ffaa88', roughness: 0.35 },
-    oak: { color: '#8b5a2b', grain: '#4a2e11', specular: '#ffddaa', roughness: 0.45 },
-    walnut: { color: '#3d2314', grain: '#1f1008', specular: '#d4aa7d', roughness: 0.3 },
-    birch: { color: '#d7c4a1', grain: '#9c845c', specular: '#ffffff', roughness: 0.5 },
-    ebony: { color: '#1a1412', grain: '#0a0706', specular: '#a89f91', roughness: 0.25 }
-  };
+  static category = 'card';
+  static attach = 'card';
 
   static getParameterSchema() {
     return [
-      ...CardEffect.getParameterSchema(),
-      {
-        name: 'woodPreset',
-        label: '1. Wood Type',
-        options: {
-          'Mahogany': 'mahogany',
-          'Oak': 'oak',
-          'Walnut': 'walnut',
-          'Birch': 'birch',
-          'Ebony': 'ebony'
-        },
-        default: 'mahogany'
-      },
-      { name: 'varnishGloss', label: 'Polished Varnish Gloss', min: 0.05, max: 1.0, step: 0.05, default: 0.35 },
+      { name: 'woodPreset', label: 'Wood Type', options: { Mahogany: 'mahogany', Oak: 'oak', Walnut: 'walnut', Birch: 'birch', Ebony: 'ebony' }, default: 'mahogany' },
+      { name: 'woodMix', label: 'Wood Over Art', min: 0, max: 1, step: 0.05, default: 0.75 },
+      { name: 'varnishGloss', label: 'Polished Varnish Gloss', min: 0.05, max: 1.0, step: 0.05, default: 0.65 },
       { name: 'grainFrequency', label: 'Wood Grain Ring Frequency', min: 2.0, max: 30.0, step: 1.0, default: 12.0 },
       { name: 'goldInlay', label: 'Gold Carved Inlay Shimmer', min: 0.0, max: 1.5, step: 0.1, default: 0.6 }
     ];
   }
 
-  constructor(scene, camera, renderer) {
-    super(scene, camera, renderer);
-    this.camera.position.set(0, 0, 6.5);
-    this.generateWoodBumpMap();
-  }
+  constructor(stage) {
+    super(stage);
+    this.uniforms = {
+      uWood: { value: new THREE.Color() },
+      uGrain: { value: new THREE.Color() },
+      uSpec: { value: new THREE.Color() },
+      uMix: { value: 0.35 },
+      uGloss: { value: 0.65 },
+      uFreq: { value: 12 },
+      uGold: { value: 0.6 }
+    };
+    this.sideColor = stage.materials[0].color.clone();
 
-  generateWoodBumpMap() {
-    const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 512;
-    const ctx = canvas.getContext('2d');
-
-    ctx.fillStyle = '#808080';
-    ctx.fillRect(0, 0, 512, 512);
-
-    // Procedural carved wood grain normal lines
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
-    for (let i = 0; i < 800; i++) {
-      const y = Math.random() * 512;
-      ctx.fillRect(0, y, 512, 1 + Math.random() * 3);
-    }
-
-    this.woodBumpMap = new THREE.CanvasTexture(canvas);
-    this.woodBumpMap.wrapS = THREE.RepeatWrapping;
-    this.woodBumpMap.wrapT = THREE.RepeatWrapping;
-    this.woodBumpMap.repeat.set(1, 3);
-    this.woodBumpMap.needsUpdate = true;
-  }
-
-  createSharedCardMesh() {
-    if (this.cardMesh) {
-      this.group.remove(this.cardMesh);
-      if (this.cardGeometry) this.cardGeometry.dispose();
-      if (this.woodenShaderMat) this.woodenShaderMat.dispose();
-    }
-
-    const w = this.params.cardWidth || this.cardWidth;
-    const d = this.params.cardDepth || this.cardDepth;
-    this.cardGeometry = new THREE.BoxGeometry(w, this.cardHeight, d);
-
-    this.woodenShaderMat = new THREE.ShaderMaterial({
-      uniforms: {
-        uTime: { value: 0 },
-        uCardTexture: { value: this.cardTexture },
-        uBumpMap: { value: this.woodBumpMap },
-        uWoodColor: { value: new THREE.Color('#4a150b') },
-        uGrainColor: { value: new THREE.Color('#2b0a04') },
-        uSpecularColor: { value: new THREE.Color('#ffaa88') },
-        uRoughness: { value: 0.35 },
-        uGrainFreq: { value: 12.0 },
-        uGoldInlay: { value: 0.6 }
-      },
-      vertexShader: `
-        varying vec2 vUv;
-        varying vec3 vNormal;
-        varying vec3 vViewPosition;
-
-        void main() {
-          vUv = uv;
-          vNormal = normalize(normalMatrix * normal);
-          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-          vViewPosition = -mvPosition.xyz;
-          gl_Position = projectionMatrix * mvPosition;
+    const mat = stage.frontMat;
+    mat.onBeforeCompile = shader => {
+      Object.assign(shader.uniforms, this.uniforms);
+      shader.fragmentShader = `
+        uniform vec3 uWood, uGrain, uSpec;
+        uniform float uMix, uGloss, uFreq, uGold;
+        float wHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float wNoise(vec2 p) {
+          vec2 i = floor(p), f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(wHash(i), wHash(i + vec2(1, 0)), f.x), mix(wHash(i + vec2(0, 1)), wHash(i + vec2(1, 1)), f.x), f.y);
         }
-      `,
-      fragmentShader: `
-        uniform float uTime;
-        uniform sampler2D uCardTexture;
-        uniform sampler2D uBumpMap;
-        uniform vec3 uWoodColor;
-        uniform vec3 uGrainColor;
-        uniform vec3 uSpecularColor;
-        uniform float uRoughness;
-        uniform float uGrainFreq;
-        uniform float uGoldInlay;
+      ` + shader.fragmentShader.replace('#include <opaque_fragment>', `
+        {
+          // Long vertical growth rings: stretched across x, slowly warped along y.
+          float warp = wNoise(vec2(vMapUv.x * 4.0, vMapUv.y * 1.5)) * 2.0 + wNoise(vec2(vMapUv.x * 18.0, vMapUv.y * 3.0)) * 0.6;
+          float ring = sin(vMapUv.x * uFreq * 6.0 + warp * 5.0);
+          vec3 wood = mix(uWood, uGrain, smoothstep(-0.7, 0.7, ring));
+          // Fine pores streaking along the grain.
+          wood *= 0.8 + 0.4 * wNoise(vec2(vMapUv.x * 220.0, vMapUv.y * 6.0));
 
-        varying vec2 vUv;
-        varying vec3 vNormal;
-        varying vec3 vViewPosition;
-
-        void main() {
-          vec4 texColor = texture2D(uCardTexture, vUv);
-          vec3 bump = texture2D(uBumpMap, vUv * vec2(1.0, 3.0)).rgb - 0.5;
-          vec3 N = normalize(vNormal + bump * 0.25);
-
-          // Wood Grain Rings Shader Formula
-          float ring = sin(length(vUv - vec2(0.5)) * uGrainFreq * 10.0 + bump.r * 4.0);
-          vec3 woodBase = mix(uWoodColor, uGrainColor, smoothstep(-0.5, 0.5, ring));
-
-          // Blinn-Phong Specular Varnish Shine
           vec3 V = normalize(vViewPosition);
-          vec3 L = normalize(vec3(3.0, 5.0, 6.0));
-          vec3 H = normalize(L + V);
+          vec3 N = normalize(normal);
+          vec3 H = normalize(normalize(vec3(3.0, 5.0, 6.0)) + V);
+          float varnish = pow(max(dot(N, H), 0.0), (1.0 - uGloss * 0.9) * 128.0 + 4.0);
+          float rim = pow(1.0 - max(dot(N, V), 0.0), 3.0);
 
-          float NdotH = max(dot(N, H), 0.0);
-          float varnishGain = pow(NdotH, (1.0 - uRoughness) * 128.0);
-          vec3 varnishHighlight = uSpecularColor * varnishGain * 1.8;
-
-          // Gold Inlay Shimmer Pass
-          float goldFresnel = pow(1.0 - max(dot(N, V), 0.0), 3.0);
-          vec3 goldInlay = vec3(1.0, 0.84, 0.0) * goldFresnel * uGoldInlay;
-
-          vec3 finalColor = mix(woodBase, texColor.rgb, 0.65) + varnishHighlight + goldInlay;
-          gl_FragColor = vec4(finalColor, texColor.a);
+          float lum = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+          // Wood replaces the colour but keeps the art's light/dark, so it stays readable.
+          outgoingLight = mix(outgoingLight, wood * (0.7 + lum * 0.8), uMix) + uSpec * varnish * 1.2 * uGloss + vec3(1.0, 0.84, 0.0) * rim * uGold;
         }
-      `,
-      side: THREE.DoubleSide
-    });
-
-    const sideMat = new THREE.MeshStandardMaterial({ color: 0x4a150b, roughness: 0.6 });
-    const backMat = new THREE.MeshStandardMaterial({ color: 0x1f1008, roughness: 0.7 });
-
-    this.materials = [
-      sideMat, sideMat, sideMat, sideMat,
-      this.woodenShaderMat, backMat
-    ];
-
-    this.cardMesh = new THREE.Mesh(this.cardGeometry, this.materials);
-    this.group.add(this.cardMesh);
+        #include <opaque_fragment>
+      `);
+    };
+    mat.customProgramCacheKey = () => 'wood-card';
+    mat.needsUpdate = true;
   }
 
   onParamsUpdated() {
-    super.onParamsUpdated();
-    if (!this.woodenShaderMat) return;
-
-    const uniforms = this.woodenShaderMat.uniforms;
-    const presetKey = this.params.woodPreset || 'mahogany';
-    const preset = WoodenCardEffect.WOOD_TYPES[presetKey] || WoodenCardEffect.WOOD_TYPES.mahogany;
-
-    uniforms.uWoodColor.value.set(preset.color);
-    uniforms.uGrainColor.value.set(preset.grain);
-    uniforms.uSpecularColor.value.set(preset.specular);
-
-    uniforms.uRoughness.value = this.params.varnishGloss !== undefined ? (1.0 - this.params.varnishGloss) : 0.35;
-    uniforms.uGrainFreq.value = this.params.grainFrequency || 12.0;
-    uniforms.uGoldInlay.value = this.params.goldInlay !== undefined ? this.params.goldInlay : 0.6;
+    const p = this.params, u = this.uniforms;
+    const wood = WOOD_TYPES[p.woodPreset] || WOOD_TYPES.mahogany;
+    u.uWood.value.set(wood.color);
+    u.uGrain.value.set(wood.grain);
+    u.uSpec.value.set(wood.specular);
+    u.uMix.value = p.woodMix;
+    u.uGloss.value = p.varnishGloss;
+    u.uFreq.value = p.grainFrequency;
+    u.uGold.value = p.goldInlay;
+    this.stage.materials[0].color.set(wood.color); // card edges match the wood
   }
 
-  onTextureUpdated(texture) {
-    super.onTextureUpdated(texture);
-    if (this.woodenShaderMat) {
-      this.woodenShaderMat.uniforms.uCardTexture.value = texture;
-    }
-  }
-
-  update(time, delta) {
-    if (this.woodenShaderMat) {
-      this.woodenShaderMat.uniforms.uTime.value = time;
-    }
+  destroy() {
+    const mat = this.stage.frontMat;
+    mat.onBeforeCompile = () => {};
+    mat.customProgramCacheKey = () => '';
+    mat.needsUpdate = true;
+    this.stage.materials[0].color.copy(this.sideColor);
+    super.destroy();
   }
 }

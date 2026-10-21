@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { ParticleEffect } from './ParticleEffect.js';
+import { pixelScale } from '../core/sprites.js';
 
 export class FireAuraEffect extends ParticleEffect {
   static id = 'fire-aura';
@@ -7,9 +8,9 @@ export class FireAuraEffect extends ParticleEffect {
 
   static getParameterSchema() {
     return [
-      ...ParticleEffect.getParameterSchema(),
       { name: 'particleCount', label: 'Flame Density', min: 400, max: 4000, step: 100, default: 2200 },
       { name: 'flameHeight', label: 'Flame Rise Height', min: 0.5, max: 4.0, step: 0.1, default: 2.2 },
+      { name: 'particleSize', label: 'Flame Size', min: 0.03, max: 0.4, step: 0.01, default: 0.1 },
       { name: 'flameHeat', label: 'Heat Velocity', min: 0.2, max: 3.0, step: 0.1, default: 1.4 },
       { name: 'borderOffset', label: 'Border Distance Offset', min: 0.0, max: 0.5, step: 0.02, default: 0.05 },
       { name: 'coreColor', label: 'Core Flame Color', type: 'color', default: '#ffffff' },
@@ -18,11 +19,9 @@ export class FireAuraEffect extends ParticleEffect {
     ];
   }
 
-  constructor(scene, camera, renderer) {
-    super(scene, camera, renderer);
-    this.camera.position.set(0, 0, 6.5);
+  constructor(stage) {
+    super(stage);
     this.fireTexture = this.generateContinuousFireTexture();
-    this.rebuildFireAura();
   }
 
   generateContinuousFireTexture() {
@@ -91,8 +90,9 @@ export class FireAuraEffect extends ParticleEffect {
     const sizes = new Float32Array(count);
     const speeds = new Float32Array(count);
 
-    const cardW = this.params.cardWidth || 2.5;
-    const cardH = 3.5;
+    const cardW = this.stage.params.cardWidth;
+    const cardH = this.stage.cardHeight;
+    this.builtWidth = cardW;
     const borderOff = this.params.borderOffset !== undefined ? this.params.borderOffset : 0.05;
     const baseSize = (this.params.particleSize || 0.1) * 45.0;
 
@@ -127,10 +127,11 @@ export class FireAuraEffect extends ParticleEffect {
         uCoreColor: { value: new THREE.Color(this.params.coreColor || '#ffffff') },
         uMidColor: { value: new THREE.Color(this.params.midColor || '#ffaa00') },
         uTipColor: { value: new THREE.Color(this.params.tipColor || '#ff1100') },
-        uTexture: { value: this.fireTexture }
+        uTexture: { value: this.fireTexture },
+        uPixelScale: { value: 600 }
       },
       vertexShader: `
-        uniform float uTime;
+        uniform float uTime, uPixelScale;
         attribute float aSize;
 
         varying vec2 vUv;
@@ -140,7 +141,7 @@ export class FireAuraEffect extends ParticleEffect {
           vUv = uv;
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
           
-          gl_PointSize = aSize * (40.0 / -mvPosition.z);
+          gl_PointSize = aSize * (uPixelScale / 40.0) / -mvPosition.z;
           gl_Position = projectionMatrix * mvPosition;
 
           vHeightProgress = clamp((position.y + 1.8) / 3.5, 0.0, 1.0);
@@ -160,7 +161,7 @@ export class FireAuraEffect extends ParticleEffect {
           vec3 flameCol = mix(uCoreColor, uMidColor, smoothstep(0.0, 0.4, vHeightProgress));
           flameCol = mix(flameCol, uTipColor, smoothstep(0.4, 1.0, vHeightProgress));
           
-          gl_FragColor = vec4(flameCol * tex.rgb * 2.2, tex.a * (1.0 - vHeightProgress * 0.8));
+          gl_FragColor = vec4(flameCol * tex.rgb * 1.3, tex.a * 0.22 * (1.0 - vHeightProgress * 0.8));
         }
       `,
       transparent: true,
@@ -169,6 +170,7 @@ export class FireAuraEffect extends ParticleEffect {
     });
 
     this.fireParticles = new THREE.Points(this.fireGeometry, this.fireMaterial);
+    this.fireParticles.frustumCulled = false;
     this.group.add(this.fireParticles);
   }
 
@@ -179,6 +181,8 @@ export class FireAuraEffect extends ParticleEffect {
   update(time, delta) {
     if (this.fireMaterial && this.fireGeometry) {
       this.fireMaterial.uniforms.uTime.value = time;
+      this.fireMaterial.uniforms.uPixelScale.value = pixelScale(this.stage.renderer, this.stage.camera);
+      if (this.builtWidth !== this.stage.params.cardWidth) this.rebuildFireAura();
 
       const pos = this.fireGeometry.attributes.position.array;
       const count = pos.length / 3;
