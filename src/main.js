@@ -15,6 +15,8 @@ import { FireAuraEffect } from './effects/FireAuraEffect.js';
 import { MetallicCardEffect } from './effects/MetallicCardEffect.js';
 import { WoodenCardEffect } from './effects/WoodenCardEffect.js';
 import { LayerParallaxEffect } from './effects/LayerParallaxEffect.js';
+import { RippleEffect } from './effects/RippleEffect.js';
+import { ComicLaserEffect } from './effects/ComicLaserEffect.js';
 import { PerspectivePitchEffect } from './effects/PerspectivePitchEffect.js';
 
 const effectRegistry = [
@@ -33,7 +35,9 @@ const effectRegistry = [
   FireAuraEffect,
   MetallicCardEffect,
   WoodenCardEffect,
-  LayerParallaxEffect
+  LayerParallaxEffect,
+  RippleEffect,
+  ComicLaserEffect
 ];
 
 // Card + particle combinations. An entry is an effect class, or [class, paramOverrides].
@@ -51,6 +55,8 @@ const presets = [
   { label: '🥇 Gold Plated', effects: [[MetallicCardEffect, { metalPreset: 'gold' }], ParticleEnergyPipsEffect] },
   { label: '🔥 Fire Aura', effects: [FireAuraEffect, SmokeHazeEffect] },
   { label: '🎞️ Parallax Hero', effects: [LayerParallaxEffect, [ParticleEnergyPipsEffect, { pipColor: '#9fe8ff' }]], card: 'layered' },
+  { label: '💧 Pond Touch', effects: [HolographicFoilEffect, [RippleEffect, { autoDrip: 0 }], [ParticleEnergyPipsEffect, { pipColor: '#9fe8ff' }]] },
+  { label: '🔫 Comic Blaster', effects: [ComicLaserEffect, [ParticleEnergyPipsEffect, { pipColor: '#ffe600' }]] },
   { label: '📦 Pack Opening', effects: [DeckStack3DEffect, KnockoutExplosionEffect, HolographicFoilEffect, SmokeHazeEffect] }
 ];
 

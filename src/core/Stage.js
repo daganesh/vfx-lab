@@ -81,6 +81,9 @@ export class Stage {
 
     this.layers = null; // layer set of the current card, or null for a plain image
     this.cardListeners = [];
+    this.tapListeners = [];
+    this.raycaster = new THREE.Raycaster();
+    this.pointer = new THREE.Vector2();
     this.setCard(CARDS[0]);
   }
 
@@ -135,9 +138,11 @@ export class Stage {
     let dragging = false;
     let last = { x: 0, y: 0 };
 
+    let down = null;
     this.renderer.domElement.addEventListener('pointerdown', e => {
       dragging = true;
       last = { x: e.clientX, y: e.clientY };
+      down = { x: e.clientX, y: e.clientY, t: performance.now() };
     });
     window.addEventListener('pointermove', e => {
       if (!dragging) return;
@@ -147,8 +152,32 @@ export class Stage {
       if (e.shiftKey) this.dragGroup.rotation.z += ((e.clientX - last.x) + (e.clientY - last.y)) * sens * 0.5;
       last = { x: e.clientX, y: e.clientY };
     });
-    window.addEventListener('pointerup', () => { dragging = false; });
+    window.addEventListener('pointerup', e => {
+      dragging = false;
+      // A press that barely moved is a tap, not a drag.
+      if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 6 && performance.now() - down.t < 500) this.handleTap(e);
+      down = null;
+    });
     this.renderer.domElement.addEventListener('dblclick', () => this.dragGroup.rotation.set(0, 0, 0));
+  }
+
+  // Subscribe to taps on the card's front face. fn({ uv, point }) gets the UV of the
+  // spot touched and its position in card space. Returns an unsubscribe function.
+  onTap(fn) {
+    this.tapListeners.push(fn);
+    return () => { this.tapListeners = this.tapListeners.filter(f => f !== fn); };
+  }
+
+  handleTap(e) {
+    if (!this.tapListeners.length || !this.cardMesh.visible) return;
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    if (e.target !== this.renderer.domElement) return;
+    this.pointer.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -(((e.clientY - rect.top) / rect.height) * 2 - 1));
+    this.raycaster.setFromCamera(this.pointer, this.camera);
+    const hit = this.raycaster.intersectObject(this.cardMesh)[0];
+    if (!hit || hit.face.normal.z < 0.5) return; // only the front face
+    const point = this.cardMesh.worldToLocal(hit.point.clone());
+    this.tapListeners.slice().forEach(fn => fn({ uv: hit.uv.clone(), point }));
   }
 
   // Effects that want the camera (fov and/or position) register an override.
