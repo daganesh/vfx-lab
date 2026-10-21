@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { BaseEffect } from './BaseEffect.js';
+import { appendBolt, BoltMesh } from '../core/lightning.js';
 
 const START = new THREE.Vector3(-2.0, -2.5, 0.15);
 const END = new THREE.Vector3(2.0, 2.5, 0.15);
@@ -22,84 +23,23 @@ export class ElectricBoltEffect extends BaseEffect {
 
   constructor(stage) {
     super(stage);
-    const additive = { transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide };
-    this.coreMesh = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ ...additive, opacity: 0.95 }));
-    this.haloMesh = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ ...additive, opacity: 0.35 }));
-    this.group.add(this.haloMesh, this.coreMesh);
+    this.bolt = new BoltMesh(this.group);
     this.acc = 0;
   }
 
-  // Midpoint displacement: repeatedly split each segment and push the midpoint sideways.
-  jaggedLine(start, end, jitter, levels) {
-    let pts = [start, end];
-    for (let l = 0; l < levels; l++) {
-      const next = [];
-      for (let i = 0; i < pts.length - 1; i++) {
-        const a = pts[i], b = pts[i + 1];
-        const dx = b.x - a.x, dy = b.y - a.y;
-        const len = Math.hypot(dx, dy) || 1e-6;
-        const off = (Math.random() - 0.5) * jitter * len;
-        next.push(a, new THREE.Vector3(
-          (a.x + b.x) / 2 - (dy / len) * off,
-          (a.y + b.y) / 2 + (dx / len) * off,
-          (a.z + b.z) / 2 + (Math.random() - 0.5) * jitter * len * 0.3
-        ));
-      }
-      next.push(pts[pts.length - 1]);
-      pts = next;
-    }
-    return pts;
-  }
-
-  // Appends a flat ribbon (two triangles per segment) along the polyline.
-  addRibbon(out, pts, halfWidth) {
-    for (let i = 0; i < pts.length - 1; i++) {
-      const a = pts[i], b = pts[i + 1];
-      const len = Math.hypot(b.x - a.x, b.y - a.y) || 1e-6;
-      const px = (-(b.y - a.y) / len) * halfWidth;
-      const py = ((b.x - a.x) / len) * halfWidth;
-      out.push(
-        a.x - px, a.y - py, a.z, a.x + px, a.y + py, a.z, b.x + px, b.y + py, b.z,
-        a.x - px, a.y - py, a.z, b.x + px, b.y + py, b.z, b.x - px, b.y - py, b.z
-      );
-    }
-  }
-
   strike() {
-    const { boltWidth, splits, randomness } = this.params;
-    const main = this.jaggedLine(START, END, randomness, 6);
-    const lines = [{ pts: main, w: 1 }];
-
-    const branches = Math.round(splits * 0.4);
-    const mainDir = Math.atan2(END.y - START.y, END.x - START.x);
-    for (let b = 0; b < branches; b++) {
-      const from = main[Math.floor(Math.random() * (main.length - 1))];
-      const ang = mainDir + (Math.random() < 0.5 ? -1 : 1) * (0.4 + Math.random() * 0.7);
-      const len = 0.6 + Math.random() * 1.0;
-      const to = new THREE.Vector3(from.x + Math.cos(ang) * len, from.y + Math.sin(ang) * len, from.z);
-      lines.push({ pts: this.jaggedLine(from, to, randomness, 3), w: 0.5 });
-    }
-
     const core = [], halo = [];
-    lines.forEach(({ pts, w }) => {
-      this.addRibbon(core, pts, boltWidth * w);
-      this.addRibbon(halo, pts, boltWidth * w * 3.5);
+    appendBolt(core, halo, START, END, {
+      width: this.params.boltWidth,
+      jitter: this.params.randomness,
+      levels: 6,
+      branches: Math.round(this.params.splits * 0.4)
     });
-    this.setGeometry(this.coreMesh, core);
-    this.setGeometry(this.haloMesh, halo);
-    this.group.visible = true;
-  }
-
-  setGeometry(mesh, verts) {
-    mesh.geometry.dispose();
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(verts), 3));
-    mesh.geometry = geo;
+    this.bolt.setVerts(core, halo);
   }
 
   onParamsUpdated() {
-    this.coreMesh.material.color.set(this.params.boltColor);
-    this.haloMesh.material.color.set(this.params.haloColor);
+    this.bolt.setColors(this.params.boltColor, this.params.haloColor);
     this.strike();
   }
 
@@ -108,7 +48,7 @@ export class ElectricBoltEffect extends BaseEffect {
     if (this.acc >= 1 / this.params.flickerRate) {
       this.acc = 0;
       this.strike();
-      this.coreMesh.material.opacity = 0.6 + Math.random() * 0.4;
+      this.bolt.core.material.opacity = 0.6 + Math.random() * 0.4;
     }
   }
 }

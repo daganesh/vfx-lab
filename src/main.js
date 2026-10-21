@@ -4,6 +4,8 @@ import { HolographicFoilEffect } from './effects/HolographicFoilEffect.js';
 import { ParticleEnergyPipsEffect } from './effects/ParticleEnergyPipsEffect.js';
 import { KnockoutExplosionEffect } from './effects/KnockoutExplosionEffect.js';
 import { ElectricBoltEffect } from './effects/ElectricBoltEffect.js';
+import { ElectricCardEffect } from './effects/ElectricCardEffect.js';
+import { DiamondGlassEffect } from './effects/DiamondGlassEffect.js';
 import { FireEffect } from './effects/FireEffect.js';
 import { SmokeHazeEffect } from './effects/SmokeHazeEffect.js';
 import { TransparencyEffect } from './effects/TransparencyEffect.js';
@@ -18,7 +20,9 @@ const effectRegistry = [
   ElectricBoltEffect,
   SmokeHazeEffect,
   FireEffect,
+  ElectricCardEffect,
   TransparencyEffect,
+  DiamondGlassEffect,
   CardFlip3DEffect,
   DeckStack3DEffect,
   PerspectivePitchEffect
@@ -27,11 +31,14 @@ const effectRegistry = [
 // Card + particle combinations. An entry is an effect class, or [class, paramOverrides].
 const presets = [
   { label: '🌟 Legendary Pull', effects: [HolographicFoilEffect, ParticleEnergyPipsEffect, [CardFlip3DEffect, { flipSpeed: 0.8 }]] },
-  { label: '💥 KO Finisher', effects: [KnockoutExplosionEffect, [ElectricBoltEffect, { boltColor: '#ffea00', haloColor: '#ff0044' }], DeckStack3DEffect] },
+  { label: '💥 KO Finisher', effects: [KnockoutExplosionEffect, [ElectricCardEffect, { boltColor: '#fff3a0', haloColor: '#ff3b3b' }], DeckStack3DEffect] },
   { label: '⚡ Storm Card', effects: [ElectricBoltEffect, SmokeHazeEffect, HolographicFoilEffect] },
   { label: '👻 Spirit Card', effects: [[TransparencyEffect, { cardOpacity: 0.55 }], SmokeHazeEffect, [ParticleEnergyPipsEffect, { pipColor: '#b388ff' }]] },
   { label: '🏟️ Matchday Reveal', effects: [PerspectivePitchEffect, [CardFlip3DEffect, { flipSpeed: 1.0 }], ParticleEnergyPipsEffect] },
   { label: '🔥 Burning Card', effects: [FireEffect, [SmokeHazeEffect, { smokeColor: '#555a66', driftSpeed: 0.7 }], ParticleEnergyPipsEffect] },
+  { label: '⚡ Live Wire', effects: [ElectricCardEffect, SmokeHazeEffect, [ParticleEnergyPipsEffect, { pipColor: '#7aa8ff' }]] },
+  { label: '💎 Diamond Card', effects: [DiamondGlassEffect, HolographicFoilEffect, [CardFlip3DEffect, { flipSpeed: 0.6 }], [ParticleEnergyPipsEffect, { pipColor: '#ffffff' }]] },
+  { label: '🧊 Clear Glass', effects: [[DiamondGlassEffect, { facets: 0, ior: 1.5, iridescence: 0.2, sparkle: 0.2 }], SmokeHazeEffect] },
   { label: '📦 Pack Opening', effects: [DeckStack3DEffect, KnockoutExplosionEffect, HolographicFoilEffect, SmokeHazeEffect] }
 ];
 

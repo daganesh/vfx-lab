@@ -54,3 +54,27 @@ export function puffTexture() {
 export function pixelScale(renderer, camera) {
   return renderer.domElement.height / (2 * Math.tan((camera.fov * Math.PI) / 360));
 }
+
+let sparkle = null;
+
+// Soft four-point glint for diamond sparkles.
+export function sparkleTexture() {
+  if (sparkle) return sparkle;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  ctx.shadowColor = '#fff';
+  ctx.shadowBlur = 6;
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const a = (i * Math.PI) / 4;
+    const r = i % 2 === 0 ? 28 : 3;
+    const x = 32 + Math.cos(a) * r, y = 32 + Math.sin(a) * r;
+    if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+  }
+  ctx.closePath();
+  ctx.fill();
+  sparkle = new THREE.CanvasTexture(canvas);
+  return sparkle;
+}
