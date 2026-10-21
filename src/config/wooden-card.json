@@ -1,0 +1,9 @@
+{
+  "cardWidth": 2.5,
+  "cardDepth": 0.05,
+  "dragRotationSensitivity": 1,
+  "woodPreset": "ebony",
+  "varnishGloss": 0.65,
+  "grainFrequency": 16,
+  "goldInlay": 0.6
+}

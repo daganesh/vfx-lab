@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { BaseEffect } from './BaseEffect.js';
-import { appendBolt, BoltMesh } from '../core/lightning.js';
+import { ForkedBolt } from '../core/lightning.js';
 
 // Lightning that arcs across the card face and makes the card itself flash.
 export class ElectricCardEffect extends BaseEffect {
@@ -24,7 +24,7 @@ export class ElectricCardEffect extends BaseEffect {
 
   constructor(stage) {
     super(stage);
-    this.bolt = new BoltMesh(this.group);
+    this.bolts = [];
     this.acc = 0;
     this.flash = 0;
   }
@@ -42,24 +42,25 @@ export class ElectricCardEffect extends BaseEffect {
     const hw = this.stage.params.cardWidth / 2 - 0.03;
     const hh = this.stage.cardHeight / 2 - 0.03;
     const z = this.stage.params.cardDepth / 2 + 0.012;
-    const core = [], halo = [];
-    for (let i = 0; i < this.params.boltCount; i++) {
+    while (this.bolts.length > this.params.boltCount) this.bolts.pop().dispose();
+    while (this.bolts.length < this.params.boltCount) this.bolts.push(new ForkedBolt(this.group, { hw, hh }));
+    const opacity = 0.7 + Math.random() * 0.3;
+    this.bolts.forEach(bolt => {
+      bolt.bounds = { hw, hh };
+      bolt.setColors(this.params.boltColor, this.params.haloColor);
       const s1 = Math.floor(Math.random() * 4);
       const s2 = (s1 + 1 + Math.floor(Math.random() * 3)) % 4; // a different edge: crosses the face
-      appendBolt(core, halo, this.edgePoint(s1, hw, hh, z), this.edgePoint(s2, hw, hh, z), {
+      bolt.build(this.edgePoint(s1, hw, hh, z), this.edgePoint(s2, hw, hh, z), {
         width: this.params.boltWidth,
         jitter: this.params.jitter,
-        levels: 5,
-        branches: 2,
-        depth: 0, // stay flat on the surface
-        bounds: { hw, hh }
+        splits: 2,
+        haloScale: 3
       });
-    }
-    this.bolt.setVerts(core, halo);
+      bolt.mat.uniforms.uOpacity.value = opacity;
+    });
   }
 
   onParamsUpdated() {
-    this.bolt.setColors(this.params.boltColor, this.params.haloColor);
     this.strike();
   }
 
@@ -72,7 +73,6 @@ export class ElectricCardEffect extends BaseEffect {
       if (live) {
         this.strike();
         this.flash = 1;
-        this.bolt.core.material.opacity = 0.7 + Math.random() * 0.3;
       }
     }
     this.flash = Math.max(0, this.flash - delta * 6);
@@ -87,6 +87,7 @@ export class ElectricCardEffect extends BaseEffect {
   }
 
   destroy() {
+    this.bolts.forEach(b => b.dispose());
     const { frontMat, materials } = this.stage;
     [frontMat, materials[0]].forEach(m => { m.emissive.set(0x000000); m.emissiveIntensity = 1; });
     super.destroy();

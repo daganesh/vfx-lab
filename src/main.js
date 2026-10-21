@@ -11,6 +11,9 @@ import { SmokeHazeEffect } from './effects/SmokeHazeEffect.js';
 import { TransparencyEffect } from './effects/TransparencyEffect.js';
 import { CardFlip3DEffect } from './effects/CardFlip3DEffect.js';
 import { DeckStack3DEffect } from './effects/DeckStack3DEffect.js';
+import { FireAuraEffect } from './effects/FireAuraEffect.js';
+import { MetallicCardEffect } from './effects/MetallicCardEffect.js';
+import { WoodenCardEffect } from './effects/WoodenCardEffect.js';
 import { PerspectivePitchEffect } from './effects/PerspectivePitchEffect.js';
 
 const effectRegistry = [
@@ -25,7 +28,10 @@ const effectRegistry = [
   DiamondGlassEffect,
   CardFlip3DEffect,
   DeckStack3DEffect,
-  PerspectivePitchEffect
+  PerspectivePitchEffect,
+  FireAuraEffect,
+  MetallicCardEffect,
+  WoodenCardEffect
 ];
 
 // Card + particle combinations. An entry is an effect class, or [class, paramOverrides].
@@ -39,6 +45,9 @@ const presets = [
   { label: '⚡ Live Wire', effects: [ElectricCardEffect, SmokeHazeEffect, [ParticleEnergyPipsEffect, { pipColor: '#7aa8ff' }]] },
   { label: '💎 Diamond Card', effects: [DiamondGlassEffect, HolographicFoilEffect, [CardFlip3DEffect, { flipSpeed: 0.6 }], [ParticleEnergyPipsEffect, { pipColor: '#ffffff' }]] },
   { label: '🧊 Clear Glass', effects: [[DiamondGlassEffect, { facets: 0, ior: 1.5, iridescence: 0.2, sparkle: 0.2 }], SmokeHazeEffect] },
+  { label: '🪵 Carved Wood', effects: [WoodenCardEffect, [ParticleEnergyPipsEffect, { pipColor: '#ffd36b' }]] },
+  { label: '🥇 Gold Plated', effects: [[MetallicCardEffect, { metalPreset: 'gold' }], ParticleEnergyPipsEffect] },
+  { label: '🔥 Fire Aura', effects: [FireAuraEffect, SmokeHazeEffect] },
   { label: '📦 Pack Opening', effects: [DeckStack3DEffect, KnockoutExplosionEffect, HolographicFoilEffect, SmokeHazeEffect] }
 ];
 

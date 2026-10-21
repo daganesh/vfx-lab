@@ -174,7 +174,9 @@ export class VisualizerHarness {
         ? folder.addColor(params, item.name)
         : item.type === 'boolean'
           ? folder.add(params, item.name)
-          : folder.add(params, item.name, item.min, item.max, item.step);
+          : item.options
+            ? folder.add(params, item.name, item.options)
+            : folder.add(params, item.name, item.min, item.max, item.step);
       controller.name(item.label).onChange(onChange);
     });
     return folder;
