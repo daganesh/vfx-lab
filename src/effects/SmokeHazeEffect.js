@@ -8,6 +8,7 @@ import { puffTexture, pixelScale } from '../core/sprites.js';
 export class SmokeHazeEffect extends ParticleEffect {
   static id = 'smoke-haze';
   static label = '🌫️ Soft Smoke / Haze';
+  static attach = 'card'; // moves, drags and flips with the card
 
   static getParameterSchema() {
     return [

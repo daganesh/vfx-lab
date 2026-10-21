@@ -5,6 +5,7 @@ import { pixelScale } from '../core/sprites.js';
 export class FireAuraEffect extends ParticleEffect {
   static id = 'fire-aura';
   static label = '🔥 Continuous Border Fire Aura';
+  static attach = 'card'; // moves, drags and flips with the card
 
   static getParameterSchema() {
     return [

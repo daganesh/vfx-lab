@@ -8,6 +8,7 @@ import { softDotTexture, pixelScale } from '../core/sprites.js';
 export class FireEffect extends ParticleEffect {
   static id = 'fire';
   static label = '🔥 Fire / Burning Edge';
+  static attach = 'card'; // moves, drags and flips with the card
 
   static getParameterSchema() {
     return [
