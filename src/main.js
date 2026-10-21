@@ -4,6 +4,7 @@ import { HolographicFoilEffect } from './effects/HolographicFoilEffect.js';
 import { ParticleEnergyPipsEffect } from './effects/ParticleEnergyPipsEffect.js';
 import { KnockoutExplosionEffect } from './effects/KnockoutExplosionEffect.js';
 import { ElectricBoltEffect } from './effects/ElectricBoltEffect.js';
+import { FireEffect } from './effects/FireEffect.js';
 import { SmokeHazeEffect } from './effects/SmokeHazeEffect.js';
 import { TransparencyEffect } from './effects/TransparencyEffect.js';
 import { CardFlip3DEffect } from './effects/CardFlip3DEffect.js';
@@ -16,6 +17,7 @@ const effectRegistry = [
   KnockoutExplosionEffect,
   ElectricBoltEffect,
   SmokeHazeEffect,
+  FireEffect,
   TransparencyEffect,
   CardFlip3DEffect,
   DeckStack3DEffect,
@@ -29,7 +31,8 @@ const presets = [
   { label: '⚡ Storm Card', effects: [ElectricBoltEffect, SmokeHazeEffect, HolographicFoilEffect] },
   { label: '👻 Spirit Card', effects: [[TransparencyEffect, { cardOpacity: 0.55 }], SmokeHazeEffect, [ParticleEnergyPipsEffect, { pipColor: '#b388ff' }]] },
   { label: '🏟️ Matchday Reveal', effects: [PerspectivePitchEffect, [CardFlip3DEffect, { flipSpeed: 1.0 }], ParticleEnergyPipsEffect] },
-  { label: '🔥 Pack Opening', effects: [DeckStack3DEffect, KnockoutExplosionEffect, HolographicFoilEffect, SmokeHazeEffect] }
+  { label: '🔥 Burning Card', effects: [FireEffect, [SmokeHazeEffect, { smokeColor: '#555a66', driftSpeed: 0.7 }], ParticleEnergyPipsEffect] },
+  { label: '📦 Pack Opening', effects: [DeckStack3DEffect, KnockoutExplosionEffect, HolographicFoilEffect, SmokeHazeEffect] }
 ];
 
 window.addEventListener('DOMContentLoaded', () => {
