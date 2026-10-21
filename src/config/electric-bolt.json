@@ -1,0 +1,14 @@
+{
+  "mainTrunks": 5,
+  "sectionLength": 0.3,
+  "sectionLengthNoise": 0.25,
+  "directionRandomness": 0.6,
+  "splitChance": 0.6,
+  "recursionDepth": 5,
+  "growthSpeed": 1.5,
+  "tipDecaySpeed": 3.1,
+  "startWidth": 0.26,
+  "color1": "#ffffff",
+  "color2": "#0066ff",
+  "glowHalo": "#7c4dff"
+}

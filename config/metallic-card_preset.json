@@ -1,0 +1,15 @@
+{
+  "cardWidth": 2.5,
+  "cardDepth": 0.05,
+  "dragRotationSensitivity": 1,
+  "metalPreset": "gold",
+  "baseColor": "#002aff",
+  "specularColor": "#ffffff",
+  "surfaceFinish": 0,
+  "roughness": 0.24,
+  "metalness": 0.95,
+  "reflectivity": 1.35,
+  "lightIntensity": 2.8,
+  "foilIridescence": 0.95,
+  "foilFrequency": 14.5
+}

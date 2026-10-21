@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Draft Heroes - VFX Effects Lab v1.1</title>
+  <title>Draft Heroes - VFX & Test Suite</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -13,12 +13,64 @@
       overflow: hidden;
       width: 100vw;
       height: 100vh;
-    }
-    #app {
       display: flex;
+      flex-direction: column;
+    }
+    
+    /* Top Tab Navigation Bar */
+    #top-nav {
+      height: 48px;
+      background: #0d121f;
+      border-bottom: 1px solid #2a3447;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 12px;
+      z-index: 100;
+    }
+    .tab-btn {
+      padding: 8px 16px;
+      background: #182234;
+      border: 1px solid #2a354d;
+      border-radius: 6px;
+      color: #8a99ad;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .tab-btn:hover {
+      background: #243047;
+      color: #ffffff;
+      border-color: #00bcd4;
+    }
+    .tab-btn.active {
+      background: #00bcd4;
+      color: #0b0f19;
+      border-color: #00e5ff;
+      font-weight: 700;
+    }
+
+    #app-container {
+      flex: 1;
+      position: relative;
+      width: 100%;
+      height: calc(100vh - 48px);
+    }
+
+    /* Page 1: Visualizer Harness Layout */
+    .page-view {
+      display: none;
       width: 100%;
       height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
     }
+    .page-view.active {
+      display: flex;
+    }
+
     #sidebar {
       width: 290px;
       background: #121826;
@@ -109,11 +161,11 @@
       position: relative;
       height: 100%;
     }
-    #canvas-container {
+    .canvas-container {
       width: 100%;
       height: 100%;
     }
-    #gui-container {
+    .gui-container {
       position: absolute;
       top: 12px;
       right: 12px;
@@ -136,36 +188,54 @@
   </style>
 </head>
 <body>
-  <div id="app">
-    <div id="sidebar">
-      <div class="header">
-        <h1>Draft Heroes VFX Lab</h1>
-        <p>Effects, Shaders & Layer Stacking</p>
-      </div>
 
-      <!-- FR 6: Custom Card Image Uploader -->
-      <div class="texture-upload-box">
-        <label for="card-image-input">🖼️ Replace Card Face Texture:</label>
-        <input type="file" id="card-image-input" accept="image/*" />
-      </div>
-
-      <div class="effect-list" id="effect-list"></div>
-
-      <!-- FR 4: Multi-effect Combination Toggle -->
-      <div class="stack-toggle-container">
-        <label>
-          <input type="checkbox" id="multi-stack-toggle" />
-          ⚡ Combine Multiple Effects
-        </label>
-      </div>
-    </div>
-
-    <div id="viewport">
-      <div id="canvas-container"></div>
-      <div id="gui-container"></div>
-      <div class="fps-counter" id="fps-counter">FPS: --</div>
-    </div>
+  <!-- Top Tab Navigation Bar -->
+  <div id="top-nav">
+    <button class="tab-btn active" id="tab-btn-harness">✨ VFX Library Harness</button>
+    <button class="tab-btn" id="tab-btn-drop">🎲 Desktop Card Drop Test</button>
   </div>
+
+  <div id="app-container">
+    
+    <!-- PAGE 1: Visualizer Harness Demo -->
+    <div class="page-view active" id="page-harness">
+      <div id="sidebar">
+        <div class="header">
+          <h1>Draft Heroes VFX Lab</h1>
+          <p>Effects, Shaders & Layer Stacking</p>
+        </div>
+
+        <div class="texture-upload-box">
+          <label for="card-image-input">🖼️ Replace Card Face Texture:</label>
+          <input type="file" id="card-image-input" accept="image/*" />
+        </div>
+
+        <div class="effect-list" id="effect-list"></div>
+
+        <div class="stack-toggle-container">
+          <label>
+            <input type="checkbox" id="multi-stack-toggle" />
+            ⚡ Combine Multiple Effects
+          </label>
+        </div>
+      </div>
+
+      <div id="viewport">
+        <div class="canvas-container" id="harness-canvas-container"></div>
+        <div class="gui-container" id="harness-gui-container"></div>
+        <div class="fps-counter" id="harness-fps-counter">FPS: --</div>
+      </div>
+    </div>
+
+    <!-- PAGE 2: Desktop Drop Test Demo -->
+    <div class="page-view" id="page-drop">
+      <div class="canvas-container" id="drop-canvas-container"></div>
+      <div class="gui-container" id="drop-gui-container"></div>
+      <div class="fps-counter" id="drop-fps-counter">FPS: --</div>
+    </div>
+
+  </div>
+
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>

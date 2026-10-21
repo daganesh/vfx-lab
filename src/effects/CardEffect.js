@@ -1,12 +1,17 @@
 import * as THREE from 'three';
 import { BaseEffect } from './BaseEffect.js';
 
+// Import local Ronaldo card image asset
+import ronaldoCardAsset from '../assets/ronaldo_card.webp';
+
 export class CardEffect extends BaseEffect {
+  static isAbstract = true;
+
   static getParameterSchema() {
     return [
       { name: 'cardWidth', label: 'Card Aspect Width', min: 1.5, max: 4.0, step: 0.1, default: 2.5 },
       { name: 'cardDepth', label: 'Card 3D Thickness', min: 0.01, max: 0.3, step: 0.01, default: 0.05 },
-      { name: 'dragRotationSensitivity', label: 'Mouse Drag Sensitivity', min: 0.1, max: 2.0, step: 0.1, default: 1.0 }
+      { name: 'dragRotationSensitivity', label: 'Drag Rotation Sensitivity', min: 0.1, max: 2.0, step: 0.1, default: 1.0 }
     ];
   }
 
@@ -17,49 +22,70 @@ export class CardEffect extends BaseEffect {
     this.cardHeight = 3.5;
     this.cardDepth = 0.05;
 
-    this.createSharedCardMesh();
+    this.setupLighting();
+    this.loadDefaultRonaldoTexture();
+  }
+
+  setupLighting() {
+    this.ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
+    this.dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+    this.dirLight.position.set(5, 5, 7);
+    this.group.add(this.ambientLight);
+    this.group.add(this.dirLight);
+  }
+
+  loadDefaultRonaldoTexture() {
+    const loader = new THREE.TextureLoader();
+    loader.load(
+      ronaldoCardAsset,
+      (tex) => {
+        tex.colorSpace = THREE.SRGBColorSpace;
+        this.cardTexture = tex;
+        this.createSharedCardMesh();
+      },
+      undefined,
+      () => {
+        // Fallback canvas texture if asset loading fails
+        this.createFallbackCanvasTexture();
+        this.createSharedCardMesh();
+      }
+    );
+
     this.setup3DragRotation();
   }
 
+  createFallbackCanvasTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 716;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#121826';
+    ctx.fillRect(0, 0, 512, 716);
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 14;
+    ctx.strokeRect(10, 10, 492, 696);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 36px sans-serif';
+    ctx.fillText('RONALDO 95', 130, 80);
+    this.cardTexture = new THREE.CanvasTexture(canvas);
+    this.cardTexture.colorSpace = THREE.SRGBColorSpace;
+  }
+
   createSharedCardMesh() {
-    // Add lighting so MeshStandardMaterial is visible
-    if (!this.lightsAdded) {
-      const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
-      const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
-      dirLight.position.set(5, 5, 7);
-      this.group.add(ambientLight);
-      this.group.add(dirLight);
-      this.lightsAdded = true;
+    if (this.cardMesh) {
+      this.group.remove(this.cardMesh);
+      if (this.cardGeometry) this.cardGeometry.dispose();
+      if (this.materials) {
+        this.materials.forEach(m => m.dispose());
+      }
     }
-    
+
     const w = this.params.cardWidth || this.cardWidth;
     const d = this.params.cardDepth || this.cardDepth;
 
     this.cardGeometry = new THREE.BoxGeometry(w, this.cardHeight, d);
 
-    if (!this.cardTexture) {
-      const canvas = document.createElement('canvas');
-      canvas.width = 512;
-      canvas.height = 716;
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#121826';
-      ctx.fillRect(0, 0, 512, 716);
-      ctx.strokeStyle = '#00e5ff';
-      ctx.lineWidth = 12;
-      ctx.strokeRect(10, 10, 492, 696);
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 36px sans-serif';
-      ctx.fillText('DRAFT HEROES', 110, 80);
-      ctx.fillStyle = '#00bcd4';
-      ctx.fillRect(40, 120, 432, 400);
-      ctx.fillStyle = '#ffffff';
-      ctx.font = '28px sans-serif';
-      ctx.fillText('⚽ ACTION CARD', 130, 320);
-
-      this.cardTexture = new THREE.CanvasTexture(canvas);
-    }
-
-    const sideMat = new THREE.MeshStandardMaterial({ color: 0x00bcd4, metalness: 0.3, roughness: 0.4 });
+    const sideMat = new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.8, roughness: 0.2 });
     this.frontMat = new THREE.MeshStandardMaterial({ map: this.cardTexture, transparent: true, opacity: 1.0 });
     const backMat = new THREE.MeshStandardMaterial({ color: 0x0a1128 });
 
@@ -85,10 +111,6 @@ export class CardEffect extends BaseEffect {
       const sens = (this.params.dragRotationSensitivity || 1.0) * 0.01;
       this.cardMesh.rotation.y += deltaX * sens;
       this.cardMesh.rotation.x += deltaY * sens;
-
-      if (e.shiftKey) {
-        this.cardMesh.rotation.z += (deltaX + deltaY) * sens * 0.5;
-      }
 
       this.previousPointerPosition = { x: e.clientX, y: e.clientY };
     };

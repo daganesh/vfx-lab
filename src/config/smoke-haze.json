@@ -1,0 +1,11 @@
+{
+  "particleCount": 1200,
+  "particleSize": 0.7,
+  "randomness": 1.5,
+  "density": 1.2,
+  "decay": 2.1,
+  "borderOffset": 0.05,
+  "opacity": 0.15,
+  "driftSpeed": 0.4,
+  "smokeColor": "#f4f5eb"
+}

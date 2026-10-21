@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import GUI from 'lil-gui';
+import { loadEffectConfigs } from '../config/configLoader.js';
 
 export class VisualizerHarness {
   constructor(containerEl, guiContainerEl, effectListEl, fpsEl, imageInputEl, multiStackToggleEl) {
@@ -14,6 +15,7 @@ export class VisualizerHarness {
     this.activeEffectsMap = new Map();
     this.singleActiveIndex = -1;
     this.isMultiStack = false;
+    this.configMap = new Map();
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(45, containerEl.clientWidth / containerEl.clientHeight, 0.1, 1000);
@@ -28,6 +30,12 @@ export class VisualizerHarness {
     this.frameCount = 0;
     this.lastFpsUpdate = 0;
 
+    // Load default configs from /src/config/ on startup
+    loadEffectConfigs().then(map => {
+      this.configMap = map;
+      this.refreshEffectSelection();
+    });
+
     this.imageInputEl.addEventListener('change', (e) => this.handleImageUpload(e));
     this.multiStackToggleEl.addEventListener('change', (e) => {
       this.isMultiStack = e.target.checked;
@@ -39,33 +47,6 @@ export class VisualizerHarness {
     requestAnimationFrame(this.animate);
   }
 
-  handleImageUpload(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        // Create texture from image and configure sRGB color space
-        const texture = new THREE.Texture(img);
-        texture.colorSpace = THREE.SRGBColorSpace;
-        texture.needsUpdate = true;
-
-        this.uploadedTexture = texture;
-
-        // Update all active running effects
-        this.activeEffectsMap.forEach(effect => {
-          if (typeof effect.onTextureUpdated === 'function') {
-            effect.onTextureUpdated(texture);
-          }
-        });
-      };
-      img.src = event.target.result;
-    };
-    reader.readAsDataURL(file);
-  }
-
   registerEffect(EffectClass) {
     const index = this.effectsRegistry.length;
     this.effectsRegistry.push(EffectClass);
@@ -73,13 +54,27 @@ export class VisualizerHarness {
     const btn = document.createElement('button');
     btn.className = 'effect-btn';
     btn.innerText = EffectClass.label;
-    
-    // Fixed Bug 1: Enclose unique index per button instance
+
     btn.addEventListener('click', () => {
       this.toggleEffectSelection(index);
     });
 
     this.effectListEl.appendChild(btn);
+  }
+
+  applyConfigToEffect(EffectClass, effectInstance) {
+    const schema = EffectClass.getParameterSchema();
+    const loadedConfig = this.configMap.get(EffectClass.id);
+
+    schema.forEach(item => {
+      if (loadedConfig && loadedConfig[item.name] !== undefined) {
+        effectInstance.params[item.name] = loadedConfig[item.name];
+      } else {
+        effectInstance.params[item.name] = item.default;
+      }
+    });
+
+    effectInstance.onParamsUpdated();
   }
 
   toggleEffectSelection(index) {
@@ -92,6 +87,8 @@ export class VisualizerHarness {
       } else {
         const EffectClass = this.effectsRegistry[index];
         const effectInstance = new EffectClass(this.scene, this.camera, this.renderer);
+        this.applyConfigToEffect(EffectClass, effectInstance);
+
         if (this.uploadedTexture && typeof effectInstance.onTextureUpdated === 'function') {
           effectInstance.onTextureUpdated(this.uploadedTexture);
         }
@@ -111,6 +108,8 @@ export class VisualizerHarness {
       if (this.singleActiveIndex >= 0) {
         const EffectClass = this.effectsRegistry[this.singleActiveIndex];
         const effectInstance = new EffectClass(this.scene, this.camera, this.renderer);
+        this.applyConfigToEffect(EffectClass, effectInstance);
+
         if (this.uploadedTexture && typeof effectInstance.onTextureUpdated === 'function') {
           effectInstance.onTextureUpdated(this.uploadedTexture);
         }
@@ -139,28 +138,41 @@ export class VisualizerHarness {
       const schema = EffectClass.getParameterSchema();
 
       schema.forEach(item => {
-        effectInstance.params[item.name] = item.default;
         let controller;
-
         if (item.type === 'color') {
           controller = folder.addColor(effectInstance.params, item.name).name(item.label);
-        } else {
+        } else if (item.options) {
+          controller = folder.add(effectInstance.params, item.name, item.options).name(item.label);
+        } else if (item.min !== undefined && item.max !== undefined) {
           controller = folder.add(effectInstance.params, item.name, item.min, item.max, item.step).name(item.label);
         }
 
-        controller.onChange(val => {
-          effectInstance.params[item.name] = val;
-          effectInstance.onParamsUpdated();
-        });
+        if (controller) {
+          controller.onChange(val => {
+            effectInstance.params[item.name] = val;
+            effectInstance.onParamsUpdated();
+          });
+        }
       });
 
-      effectInstance.onParamsUpdated();
-    });
-  }
+      const fileFolder = folder.addFolder('📁 Config File Actions');
+      const actionObj = {
+        saveToFile: () => {
+          const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(effectInstance.params, null, 2));
+          const anchor = document.createElement('a');
+          anchor.setAttribute("href", dataStr);
+          anchor.setAttribute("download", `${EffectClass.id}.json`);
+          anchor.click();
+        },
+        resetDefault: () => {
+          this.applyConfigToEffect(EffectClass, effectInstance);
+          this.rebuildGUI();
+        }
+      };
 
-  selectEffect(index) {
-    this.singleActiveIndex = index;
-    this.refreshEffectSelection();
+      fileFolder.add(actionObj, 'saveToFile').name('💾 Save to JSON File');
+      fileFolder.add(actionObj, 'resetDefault').name('↺ Reset to Config');
+    });
   }
 
   onResize() {

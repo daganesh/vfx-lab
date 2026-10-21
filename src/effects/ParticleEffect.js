@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { BaseEffect } from './BaseEffect.js';
 
 export class ParticleEffect extends BaseEffect {
+  static isAbstract = true; // Mark as base abstract particle class
+
   static getParameterSchema() {
     return [
       { name: 'particleCount', label: 'Particle Count', min: 50, max: 2000, step: 50, default: 500 },

@@ -3,93 +3,252 @@ import { BaseEffect } from './BaseEffect.js';
 
 export class ElectricBoltEffect extends BaseEffect {
   static id = 'electric-bolt';
-  static label = '⚡ Electric Bolt';
+  static label = '⚡ Evolving Radial Lightning';
 
   static getParameterSchema() {
     return [
-      { name: 'boltWidth', label: 'Lightning Line Width', min: 0.01, max: 0.3, step: 0.01, default: 0.08 },
-      { name: 'splits', label: 'Lightning Splits / Branches', min: 1, max: 100, step: 1, default: 15 },
-      { name: 'boltColor', label: 'Bolt Core Color', type: 'color', default: '#00e5ff' },
-      { name: 'haloColor', label: 'Halo Glow Color', type: 'color', default: '#7c4dff' },
-      { name: 'randomness', label: 'Jitter / Randomness', min: 0.05, max: 0.8, step: 0.05, default: 0.3 }
+      // Restored Geometry & Branching Controls
+      { name: 'mainTrunks', label: '1. Radial Trunks', min: 2, max: 16, step: 1, default: 8 },
+      { name: 'sectionLength', label: '1. Base Section Length', min: 0.05, max: 0.8, step: 0.02, default: 0.25 },
+      { name: 'sectionLengthNoise', label: '1. Section Length Jitter', min: 0.0, max: 1.0, step: 0.05, default: 0.4 },
+      
+      { name: 'directionRandomness', label: '2. Direction Randomness', min: 0.05, max: 1.0, step: 0.05, default: 0.35 },
+      { name: 'splitChance', label: '2. Split Probability', min: 0.05, max: 0.9, step: 0.05, default: 0.3 },
+      { name: 'recursionDepth', label: '2. Fractal Depth', min: 2, max: 6, step: 1, default: 4 },
+
+      // Growth & Decay Controls (Fixes Crowding)
+      { name: 'growthSpeed', label: '3. Growth Velocity', min: 0.2, max: 4.0, step: 0.1, default: 1.5 },
+      { name: 'tipDecaySpeed', label: '3. Tip Dissipation / Decay', min: 0.2, max: 5.0, step: 0.1, default: 2.2 },
+
+      // Visual Styling & Colors
+      { name: 'startWidth', label: 'Source Core Width', min: 0.02, max: 0.4, step: 0.01, default: 0.18 },
+      { name: 'color1', label: 'Source Color (Core)', type: 'color', default: '#ffffff' },
+      { name: 'color2', label: 'Tip Color (Fade)', type: 'color', default: '#0066ff' },
+      { name: 'glowHalo', label: 'Aura Glow Color', type: 'color', default: '#7c4dff' }
     ];
   }
 
   constructor(scene, camera, renderer) {
     super(scene, camera, renderer);
-    this.camera.position.set(0, 0, 6.5);
-    this.buildLightning();
+    this.camera.position.set(0, 0, 7.0);
+
+    this.branches = [];
+    this.activeSegments = [];
+    this.initEvolvingBranches();
   }
 
-  buildLightning() {
-    if (this.linesGroup) this.group.remove(this.linesGroup);
-    this.linesGroup = new THREE.Group();
+  initEvolvingBranches() {
+    if (this.boltGroup) {
+      this.group.remove(this.boltGroup);
+      this.boltGroup.traverse(child => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) child.material.dispose();
+      });
+    }
 
-    const splits = this.params.splits || 15;
-    const width = this.params.boltWidth || 0.08;
-    const noise = this.params.randomness || 0.3;
+    this.boltGroup = new THREE.Group();
+    this.activeSegments = [];
 
-    const mainStart = new THREE.Vector3(-2.0, -2.5, 0);
-    const mainEnd = new THREE.Vector3(2.0, 2.5, 0);
+    const mainTrunks = this.params.mainTrunks || 8;
+    const startW = this.params.startWidth || 0.18;
+    const col1 = new THREE.Color(this.params.color1 || '#ffffff');
+    const col2 = new THREE.Color(this.params.color2 || '#0066ff');
+    const haloCol = new THREE.Color(this.params.glowHalo || '#7c4dff');
 
-    const mat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(this.params.boltColor || '#00e5ff'),
-      side: THREE.DoubleSide,
+    this.shaderMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uColor1: { value: col1 },
+        uColor2: { value: col2 },
+        uHaloColor: { value: haloCol }
+      },
+      vertexShader: `
+        attribute float aProgress;
+        attribute float aOpacity;
+        varying vec2 vUv;
+        varying float vProgress;
+        varying float vOpacity;
+
+        void main() {
+          vUv = uv;
+          vProgress = aProgress;
+          vOpacity = aOpacity;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 uColor1;
+        uniform vec3 uColor2;
+        uniform vec3 uHaloColor;
+        varying vec2 vUv;
+        varying float vProgress;
+        varying float vOpacity;
+
+        void main() {
+          float dist = abs(vUv.x - 0.5) * 2.0;
+          vec3 baseColor = mix(uColor1, uColor2, vProgress);
+          float core = smoothstep(0.3, 0.0, dist);
+          float halo = pow(1.0 - dist, 2.0);
+
+          vec3 finalColor = mix(uHaloColor, baseColor, core);
+          float alpha = max(core, halo) * vOpacity;
+
+          gl_FragColor = vec4(finalColor * 1.5, alpha);
+        }
+      `,
       transparent: true,
-      opacity: 0.95,
-      blending: THREE.AdditiveBlending
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide
     });
 
-    // Recursive fractal split branch generation
-    const generateBranch = (start, end, depth, currentSplits) => {
-      if (depth <= 0) return;
+    // Central core flare
+    const coreGeo = new THREE.PlaneGeometry(startW * 3.5, startW * 3.5);
+    const coreMat = new THREE.ShaderMaterial({
+      uniforms: { uColor: { value: col1 } },
+      vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+      fragmentShader: `uniform vec3 uColor; varying vec2 vUv; void main() { float d = length(vUv - vec2(0.5)) * 2.0; float alpha = smoothstep(1.0, 0.0, d); gl_FragColor = vec4(uColor * 2.0, alpha); }`,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    });
+    this.boltGroup.add(new THREE.Mesh(coreGeo, coreMat));
 
-      const mid = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
-      mid.x += (Math.random() - 0.5) * noise * 2.0;
-      mid.y += (Math.random() - 0.5) * noise * 2.0;
-      mid.z += (Math.random() - 0.5) * noise * 2.0;
+    // Initialize radial evolving branch heads
+    this.branches = [];
+    const centerPt = new THREE.Vector3(0, 0, 0);
 
-      // Build thick ribbon geometry for adjustable line width
-      const dir = new THREE.Vector3().subVectors(end, start).normalize();
-      const perp = new THREE.Vector3(-dir.y, dir.x, 0).multiplyScalar(width * (depth / 4.0));
+    for (let i = 0; i < mainTrunks; i++) {
+      const angle = (i / mainTrunks) * Math.PI * 2.0 + (Math.random() - 0.5) * 0.2;
+      const dir = new THREE.Vector3(Math.cos(angle), Math.sin(angle), 0).normalize();
 
-      const quadGeo = new THREE.BufferGeometry();
-      const vertices = new Float32Array([
-        start.x - perp.x, start.y - perp.y, start.z,
-        start.x + perp.x, start.y + perp.y, start.z,
-        mid.x + perp.x, mid.y + perp.y, mid.z,
-        mid.x - perp.x, mid.y - perp.y, mid.z
-      ]);
-      quadGeo.setIndex([0, 1, 2, 0, 2, 3]);
-      quadGeo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+      this.branches.push({
+        currPt: centerPt.clone(),
+        dir: dir,
+        progress: 0.0,
+        depth: this.params.recursionDepth || 4,
+        maxRadius: 3.5 + Math.random() * 0.5
+      });
+    }
 
-      this.linesGroup.add(new THREE.Mesh(quadGeo, mat));
-
-      generateBranch(start, mid, depth - 1, currentSplits);
-      generateBranch(mid, end, depth - 1, currentSplits);
-
-      // Hierarchical split branching based on `splits` count
-      if (Math.random() < currentSplits / 100.0) {
-        const sideBranchEnd = mid.clone().add(
-          new THREE.Vector3((Math.random() - 0.5) * 2.0, (Math.random() - 0.5) * 2.0, 0)
-        );
-        generateBranch(mid, sideBranchEnd, depth - 1, currentSplits * 0.5);
-      }
-    };
-
-    const recursionDepth = Math.min(6, Math.max(2, Math.floor(Math.log2(splits) + 1)));
-    generateBranch(mainStart, mainEnd, recursionDepth, splits);
-
-    this.group.add(this.linesGroup);
+    this.group.add(this.boltGroup);
   }
 
   onParamsUpdated() {
-    this.buildLightning();
+    this.initEvolvingBranches();
   }
 
   update(time, delta) {
-    if (Math.random() > 0.4) {
-      this.buildLightning();
+    if (!this.branches || this.branches.length === 0) return;
+
+    const speed = (this.params.growthSpeed || 1.5) * delta * 2.5;
+    const decaySpeed = (this.params.tipDecaySpeed || 2.2) * delta;
+    const startW = this.params.startWidth || 0.18;
+    const maxDepth = this.params.recursionDepth || 4;
+    const splitChance = this.params.splitChance || 0.3;
+    const baseSecLen = this.params.sectionLength || 0.25;
+    const lenNoise = this.params.sectionLengthNoise || 0.4;
+    const dirRandom = this.params.directionRandomness || 0.35;
+
+    // 1. Decay and prune old segments fast to prevent crowding
+    for (let j = this.activeSegments.length - 1; j >= 0; j--) {
+      const seg = this.activeSegments[j];
+      seg.opacity -= decaySpeed;
+
+      if (seg.opacity <= 0) {
+        this.boltGroup.remove(seg.mesh);
+        seg.mesh.geometry.dispose();
+        this.activeSegments.splice(j, 1);
+      } else {
+        const opacityAttr = seg.mesh.geometry.attributes.aOpacity;
+        const opArray = opacityAttr.array;
+        opArray[0] = seg.opacity;
+        opArray[1] = seg.opacity;
+        opArray[2] = seg.opacity * 0.8;
+        opArray[3] = seg.opacity * 0.8;
+        opacityAttr.needsUpdate = true;
+      }
     }
+
+    // 2. Evolve branch heads
+    const newBranches = [];
+
+    for (let i = this.branches.length - 1; i >= 0; i--) {
+      const b = this.branches[i];
+
+      if (b.progress >= 1.0 || b.currPt.length() >= b.maxRadius) {
+        b.currPt.set(0, 0, 0);
+        b.progress = 0.0;
+        const angle = Math.random() * Math.PI * 2.0;
+        b.dir.set(Math.cos(angle), Math.sin(angle), 0).normalize();
+        continue;
+      }
+
+      const p1 = b.currPt.clone();
+      const stepDist = baseSecLen * (0.6 + Math.random() * lenNoise * 1.2);
+      const jitterAngle = (Math.random() - 0.5) * dirRandom * 1.5;
+      b.dir.applyAxisAngle(new THREE.Vector3(0, 0, 1), jitterAngle);
+
+      const p2 = p1.clone().add(b.dir.clone().multiplyScalar(stepDist));
+      const nextProgress = Math.min(1.0, b.progress + stepDist / b.maxRadius);
+
+      const w1 = startW * Math.pow(1.0 - b.progress, 1.8) * (b.depth / maxDepth);
+      const w2 = startW * Math.pow(1.0 - nextProgress, 1.8) * Math.max(0.05, (b.depth - 0.5) / maxDepth);
+
+      const op1 = Math.pow(1.0 - b.progress, 1.2);
+      const op2 = Math.pow(1.0 - nextProgress, 1.2);
+
+      const perp = new THREE.Vector3(-b.dir.y, b.dir.x, 0).normalize();
+
+      const geo = new THREE.BufferGeometry();
+      const vertices = new Float32Array([
+        p1.x - perp.x * w1, p1.y - perp.y * w1, p1.z,
+        p1.x + perp.x * w1, p1.y + perp.y * w1, p1.z,
+        p2.x + perp.x * w2, p2.y + perp.y * w2, p2.z,
+        p2.x - perp.x * w2, p2.y - perp.y * w2, p2.z
+      ]);
+
+      geo.setIndex([0, 1, 2, 0, 2, 3]);
+      geo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+      geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array([0,0, 1,0, 1,1, 0,1]), 2));
+      geo.setAttribute('aProgress', new THREE.BufferAttribute(new Float32Array([b.progress, b.progress, nextProgress, nextProgress]), 1));
+      geo.setAttribute('aOpacity', new THREE.BufferAttribute(new Float32Array([op1, op1, op2, op2]), 1));
+
+      const mesh = new THREE.Mesh(geo, this.shaderMat);
+      this.boltGroup.add(mesh);
+
+      this.activeSegments.push({
+        mesh: mesh,
+        opacity: op1
+      });
+
+      b.currPt.copy(p2);
+      b.progress = nextProgress;
+
+      if (Math.random() < splitChance && b.depth > 1 && this.branches.length < 32) {
+        const sideDir = b.dir.clone().applyAxisAngle(new THREE.Vector3(0, 0, 1), (Math.random() - 0.5) * dirRandom * 2.0);
+        newBranches.push({
+          currPt: p2.clone(),
+          dir: sideDir,
+          progress: nextProgress,
+          depth: b.depth - 1,
+          maxRadius: b.maxRadius
+        });
+      }
+    }
+
+    if (newBranches.length > 0) {
+      this.branches.push(...newBranches);
+    }
+  }
+
+  destroy() {
+    if (this.boltGroup) {
+      this.group.remove(this.boltGroup);
+      this.boltGroup.traverse(child => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) child.material.dispose();
+      });
+    }
+    super.destroy();
   }
 }
