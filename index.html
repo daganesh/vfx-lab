@@ -55,6 +55,16 @@
       margin-bottom: 6px;
       font-weight: bold;
     }
+    .texture-upload-box select {
+      width: 100%;
+      margin-bottom: 10px;
+      padding: 5px 6px;
+      font-size: 0.8rem;
+      background: #0b0f19;
+      color: #c5d1e0;
+      border: 1px solid #2a3447;
+      border-radius: 4px;
+    }
     .texture-upload-box input {
       font-size: 0.75rem;
       color: #c5d1e0;
@@ -79,6 +89,7 @@
       cursor: pointer;
       transition: all 0.2s ease;
     }
+    .effect-btn.disabled { opacity: 0.4; cursor: not-allowed; }
     .effect-btn:hover {
       background: #243047;
       color: #ffffff;
@@ -186,6 +197,8 @@
 
       <!-- FR 6: Custom Card Image Uploader -->
       <div class="texture-upload-box">
+        <label for="card-select">🃏 Card:</label>
+        <select id="card-select"></select>
         <label for="card-image-input">🖼️ Replace Card Face Texture:</label>
         <input type="file" id="card-image-input" accept="image/*" />
       </div>

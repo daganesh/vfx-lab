@@ -1,0 +1,49 @@
+{
+  "width": 700,
+  "height": 980,
+  "layers": [
+    {
+      "id": "background",
+      "file": "background.png",
+      "depth": 0.0
+    },
+    {
+      "id": "logo",
+      "file": "logo.png",
+      "depth": 0.2
+    },
+    {
+      "id": "player_shadow",
+      "file": "player_shadow.png",
+      "depth": 0.55,
+      "shadowOf": "player"
+    },
+    {
+      "id": "player",
+      "file": "player.png",
+      "depth": 0.55
+    },
+    {
+      "id": "text",
+      "file": "text.png",
+      "depth": 0.4
+    },
+    {
+      "id": "frame",
+      "file": "frame.png",
+      "depth": 0.0
+    },
+    {
+      "id": "ball_shadow",
+      "file": "ball_shadow.png",
+      "depth": 1.0,
+      "shadowOf": "ball"
+    },
+    {
+      "id": "ball",
+      "file": "ball.png",
+      "depth": 1.0
+    }
+  ],
+  "flat": "flat.png"
+}

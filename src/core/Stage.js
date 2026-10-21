@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import ronaldoCard from '../assets/ronaldo_card.webp';
+import { CARDS } from './cards.js';
 
 // Owns everything effects share: the base card, lights, drag-to-rotate and the
 // camera. Effects are layers on top of it, which is what makes them combinable.
@@ -79,11 +79,9 @@ export class Stage {
     this.cardMesh = new THREE.Mesh(this.makeCardGeometry(), this.materials);
     this.cardPivot.add(this.cardMesh);
 
-    // Default art; the canvas card above stays as the fallback if it fails to load.
-    new THREE.TextureLoader().load(ronaldoCard, texture => {
-      texture.colorSpace = THREE.SRGBColorSpace;
-      this.setTexture(texture);
-    });
+    this.layers = null; // layer set of the current card, or null for a plain image
+    this.cardListeners = [];
+    this.setCard(CARDS[0]);
   }
 
   makeCardGeometry() {
@@ -98,7 +96,39 @@ export class Stage {
 
   setTexture(texture) {
     this.frontMat.map = texture;
+    this.frontMat.alphaTest = 0.5; // shaped cards: transparent corners stay see-through
     this.frontMat.needsUpdate = true;
+  }
+
+  // Switch the card (see core/cards.js). Layers arrive after the face, and
+  // listeners hear about every change of `stage.layers`.
+  async setCard(card) {
+    const token = (this.cardToken = {});
+    this.setLayers(null);
+    try {
+      const [face, layers] = await Promise.all([card.face(), card.layers ? card.layers() : null]);
+      if (token !== this.cardToken) return; // a newer choice superseded this one
+      this.setTexture(face);
+      this.setLayers(layers);
+    } catch (err) {
+      console.error(`Could not load card "${card.id}"`, err);
+    }
+  }
+
+  // A custom uploaded image is a plain card: it has no layers.
+  setPlainImage(texture) {
+    this.cardToken = {};
+    this.setTexture(texture);
+    this.setLayers(null);
+  }
+
+  setLayers(layers) {
+    this.layers = layers;
+    this.cardListeners.forEach(fn => fn(layers));
+  }
+
+  onLayersChange(fn) {
+    this.cardListeners.push(fn);
   }
 
   setupDrag() {

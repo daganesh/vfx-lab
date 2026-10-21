@@ -1,15 +1,17 @@
 import * as THREE from 'three';
 import GUI from 'lil-gui';
 import { Stage } from '../core/Stage.js';
+import { CARDS } from '../core/cards.js';
 
 export class VisualizerHarness {
-  constructor({ container, guiContainer, effectList, presetList, fps, imageInput, multiStackToggle }) {
+  constructor({ container, guiContainer, effectList, presetList, fps, imageInput, cardSelect, multiStackToggle }) {
     this.container = container;
     this.guiContainer = guiContainer;
     this.effectListEl = effectList;
     this.presetListEl = presetList;
     this.fpsEl = fps;
     this.imageInputEl = imageInput;
+    this.cardSelectEl = cardSelect;
     this.multiStackToggleEl = multiStackToggle;
 
     this.effectsRegistry = [];
@@ -34,6 +36,9 @@ export class VisualizerHarness {
     this.lastFpsUpdate = 0;
 
     this.imageInputEl.addEventListener('change', e => this.handleImageUpload(e));
+    CARDS.forEach(card => this.cardSelectEl.add(new Option(card.label, card.id)));
+    this.cardSelectEl.addEventListener('change', () => this.selectCard(this.cardSelectEl.value));
+    this.stage.onLayersChange(() => this.syncLayerEffects());
     this.multiStackToggleEl.addEventListener('change', e => this.setMultiStack(e.target.checked));
 
     window.addEventListener('resize', () => this.onResize());
@@ -52,11 +57,30 @@ export class VisualizerHarness {
         const texture = new THREE.Texture(img);
         texture.colorSpace = THREE.SRGBColorSpace;
         texture.needsUpdate = true;
-        this.stage.setTexture(texture);
+        this.stage.setPlainImage(texture);
+        this.cardSelectEl.selectedIndex = -1;
       };
       img.src = event.target.result;
     };
     reader.readAsDataURL(file);
+  }
+
+  selectCard(id) {
+    this.stage.setCard(CARDS.find(c => c.id === id));
+  }
+
+  // Layer effects only make sense on a layered card: drop them when the card has
+  // no layers and grey out their buttons.
+  syncLayerEffects() {
+    const has = !!this.stage.layers;
+    this.activeEffectsMap.forEach((effect, i) => {
+      if (this.effectsRegistry[i].requiresLayers && !has) { effect.destroy(); this.activeEffectsMap.delete(i); }
+    });
+    this.refreshEffectSelection();
+  }
+
+  isAvailable(EffectClass) {
+    return !EffectClass.requiresLayers || !!this.stage.layers;
   }
 
   registerEffect(EffectClass) {
@@ -69,6 +93,7 @@ export class VisualizerHarness {
     tag.className = `tag tag-${EffectClass.category}`;
     tag.textContent = EffectClass.category;
     btn.append(EffectClass.label, tag);
+    if (EffectClass.requiresLayers) btn.title = 'Needs a layered card';
     btn.addEventListener('click', () => this.toggleEffectSelection(index));
     this.effectListEl.appendChild(btn);
   }
@@ -84,6 +109,10 @@ export class VisualizerHarness {
   }
 
   applyPreset(preset) {
+    if (preset.card) {
+      this.cardSelectEl.value = preset.card;
+      this.selectCard(preset.card);
+    }
     this.multiStackToggleEl.checked = true;
     this.isMultiStack = true;
     this.clearEffects();
@@ -91,6 +120,7 @@ export class VisualizerHarness {
       const [EffectClass, overrides] = Array.isArray(entry) ? entry : [entry, null];
       const index = this.effectsRegistry.indexOf(EffectClass);
       if (index < 0) return;
+      if (!this.isAvailable(EffectClass) && !preset.card) return;
       const effect = this.createEffect(index);
       if (overrides) {
         Object.assign(effect.params, overrides);
@@ -128,6 +158,7 @@ export class VisualizerHarness {
   }
 
   toggleEffectSelection(index) {
+    if (!this.isAvailable(this.effectsRegistry[index])) return;
     this.lastToggledIndex = index;
     if (!this.isMultiStack) {
       if (this.singleActiveIndex !== index) {
@@ -151,6 +182,7 @@ export class VisualizerHarness {
   refreshEffectSelection() {
     this.effectListEl.querySelectorAll('.effect-btn').forEach((btn, i) => {
       btn.classList.toggle('active', this.activeEffectsMap.has(i));
+      btn.classList.toggle('disabled', !this.isAvailable(this.effectsRegistry[i]));
     });
     this.rebuildGUI();
   }

@@ -14,6 +14,7 @@ import { DeckStack3DEffect } from './effects/DeckStack3DEffect.js';
 import { FireAuraEffect } from './effects/FireAuraEffect.js';
 import { MetallicCardEffect } from './effects/MetallicCardEffect.js';
 import { WoodenCardEffect } from './effects/WoodenCardEffect.js';
+import { LayerParallaxEffect } from './effects/LayerParallaxEffect.js';
 import { PerspectivePitchEffect } from './effects/PerspectivePitchEffect.js';
 
 const effectRegistry = [
@@ -31,7 +32,8 @@ const effectRegistry = [
   PerspectivePitchEffect,
   FireAuraEffect,
   MetallicCardEffect,
-  WoodenCardEffect
+  WoodenCardEffect,
+  LayerParallaxEffect
 ];
 
 // Card + particle combinations. An entry is an effect class, or [class, paramOverrides].
@@ -48,6 +50,7 @@ const presets = [
   { label: '🪵 Carved Wood', effects: [WoodenCardEffect, [ParticleEnergyPipsEffect, { pipColor: '#ffd36b' }]] },
   { label: '🥇 Gold Plated', effects: [[MetallicCardEffect, { metalPreset: 'gold' }], ParticleEnergyPipsEffect] },
   { label: '🔥 Fire Aura', effects: [FireAuraEffect, SmokeHazeEffect] },
+  { label: '🎞️ Parallax Hero', effects: [LayerParallaxEffect, [ParticleEnergyPipsEffect, { pipColor: '#9fe8ff' }]], card: 'layered' },
   { label: '📦 Pack Opening', effects: [DeckStack3DEffect, KnockoutExplosionEffect, HolographicFoilEffect, SmokeHazeEffect] }
 ];
 
@@ -60,6 +63,7 @@ window.addEventListener('DOMContentLoaded', () => {
     presetList: $('preset-list'),
     fps: $('fps-counter'),
     imageInput: $('card-image-input'),
+    cardSelect: $('card-select'),
     multiStackToggle: $('multi-stack-toggle')
   });
 
