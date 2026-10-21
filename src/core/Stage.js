@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import ronaldoCard from '../assets/ronaldo_card.webp';
 
 // Owns everything effects share: the base card, lights, drag-to-rotate and the
 // camera. Effects are layers on top of it, which is what makes them combinable.
@@ -77,6 +78,12 @@ export class Stage {
 
     this.cardMesh = new THREE.Mesh(this.makeCardGeometry(), this.materials);
     this.cardPivot.add(this.cardMesh);
+
+    // Default art; the canvas card above stays as the fallback if it fails to load.
+    new THREE.TextureLoader().load(ronaldoCard, texture => {
+      texture.colorSpace = THREE.SRGBColorSpace;
+      this.setTexture(texture);
+    });
   }
 
   makeCardGeometry() {
