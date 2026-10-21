@@ -1,38 +1,40 @@
 import * as THREE from 'three';
 import GUI from 'lil-gui';
+import { Stage } from '../core/Stage.js';
 
 export class VisualizerHarness {
-  constructor(containerEl, guiContainerEl, effectListEl, fpsEl, imageInputEl, multiStackToggleEl) {
-    this.container = containerEl;
-    this.guiContainer = guiContainerEl;
-    this.effectListEl = effectListEl;
-    this.fpsEl = fpsEl;
-    this.imageInputEl = imageInputEl;
-    this.multiStackToggleEl = multiStackToggleEl;
+  constructor({ container, guiContainer, effectList, presetList, fps, imageInput, multiStackToggle }) {
+    this.container = container;
+    this.guiContainer = guiContainer;
+    this.effectListEl = effectList;
+    this.presetListEl = presetList;
+    this.fpsEl = fps;
+    this.imageInputEl = imageInput;
+    this.multiStackToggleEl = multiStackToggle;
 
     this.effectsRegistry = [];
-    this.activeEffectsMap = new Map();
+    this.activeEffectsMap = new Map(); // registry index -> effect instance
     this.singleActiveIndex = -1;
+    this.lastToggledIndex = -1;
     this.isMultiStack = false;
 
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(45, containerEl.clientWidth / containerEl.clientHeight, 0.1, 1000);
+    this.camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
     this.camera.position.set(0, 0, 6.5);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    this.renderer.setSize(containerEl.clientWidth, containerEl.clientHeight);
+    this.renderer.setSize(container.clientWidth, container.clientHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2.0));
-    this.container.appendChild(this.renderer.domElement);
+    container.appendChild(this.renderer.domElement);
+
+    this.stage = new Stage(this.scene, this.camera, this.renderer);
 
     this.clock = new THREE.Clock();
     this.frameCount = 0;
     this.lastFpsUpdate = 0;
 
-    this.imageInputEl.addEventListener('change', (e) => this.handleImageUpload(e));
-    this.multiStackToggleEl.addEventListener('change', (e) => {
-      this.isMultiStack = e.target.checked;
-      this.refreshEffectSelection();
-    });
+    this.imageInputEl.addEventListener('change', e => this.handleImageUpload(e));
+    this.multiStackToggleEl.addEventListener('change', e => this.setMultiStack(e.target.checked));
 
     window.addEventListener('resize', () => this.onResize());
     this.animate = this.animate.bind(this);
@@ -44,22 +46,13 @@ export class VisualizerHarness {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = event => {
       const img = new Image();
       img.onload = () => {
-        // Create texture from image and configure sRGB color space
         const texture = new THREE.Texture(img);
         texture.colorSpace = THREE.SRGBColorSpace;
         texture.needsUpdate = true;
-
-        this.uploadedTexture = texture;
-
-        // Update all active running effects
-        this.activeEffectsMap.forEach(effect => {
-          if (typeof effect.onTextureUpdated === 'function') {
-            effect.onTextureUpdated(texture);
-          }
-        });
+        this.stage.setTexture(texture);
       };
       img.src = event.target.result;
     };
@@ -72,60 +65,93 @@ export class VisualizerHarness {
 
     const btn = document.createElement('button');
     btn.className = 'effect-btn';
-    btn.innerText = EffectClass.label;
-    
-    // Fixed Bug 1: Enclose unique index per button instance
-    btn.addEventListener('click', () => {
-      this.toggleEffectSelection(index);
-    });
-
+    const tag = document.createElement('span');
+    tag.className = `tag tag-${EffectClass.category}`;
+    tag.textContent = EffectClass.category;
+    btn.append(EffectClass.label, tag);
+    btn.addEventListener('click', () => this.toggleEffectSelection(index));
     this.effectListEl.appendChild(btn);
   }
 
-  toggleEffectSelection(index) {
-    if (!this.isMultiStack) {
-      this.singleActiveIndex = index;
-    } else {
-      if (this.activeEffectsMap.has(index)) {
-        this.activeEffectsMap.get(index).destroy();
-        this.activeEffectsMap.delete(index);
-      } else {
-        const EffectClass = this.effectsRegistry[index];
-        const effectInstance = new EffectClass(this.scene, this.camera, this.renderer);
-        if (this.uploadedTexture && typeof effectInstance.onTextureUpdated === 'function') {
-          effectInstance.onTextureUpdated(this.uploadedTexture);
-        }
-        this.activeEffectsMap.set(index, effectInstance);
+  // preset: { label, effects: [EffectClass | [EffectClass, paramOverrides]] }
+  registerPreset(preset) {
+    const btn = document.createElement('button');
+    btn.className = 'preset-btn';
+    btn.textContent = preset.label;
+    btn.title = preset.effects.map(e => (Array.isArray(e) ? e[0] : e).label).join(' + ');
+    btn.addEventListener('click', () => this.applyPreset(preset));
+    this.presetListEl.appendChild(btn);
+  }
+
+  applyPreset(preset) {
+    this.multiStackToggleEl.checked = true;
+    this.isMultiStack = true;
+    this.clearEffects();
+    preset.effects.forEach(entry => {
+      const [EffectClass, overrides] = Array.isArray(entry) ? entry : [entry, null];
+      const index = this.effectsRegistry.indexOf(EffectClass);
+      if (index < 0) return;
+      const effect = this.createEffect(index);
+      if (overrides) {
+        Object.assign(effect.params, overrides);
+        effect.onParamsUpdated();
       }
+      this.activeEffectsMap.set(index, effect);
+    });
+    this.refreshEffectSelection();
+  }
+
+  createEffect(index) {
+    const effect = new this.effectsRegistry[index](this.stage);
+    effect.onParamsUpdated();
+    return effect;
+  }
+
+  clearEffects() {
+    this.activeEffectsMap.forEach(effect => effect.destroy());
+    this.activeEffectsMap.clear();
+  }
+
+  setMultiStack(enabled) {
+    this.isMultiStack = enabled;
+    if (!enabled) {
+      // Collapse back to a single effect: the one last clicked, else the first active.
+      const keep = this.activeEffectsMap.has(this.lastToggledIndex)
+        ? this.lastToggledIndex
+        : [...this.activeEffectsMap.keys()][0];
+      this.activeEffectsMap.forEach((effect, i) => {
+        if (i !== keep) { effect.destroy(); this.activeEffectsMap.delete(i); }
+      });
+      this.singleActiveIndex = keep ?? -1;
     }
     this.refreshEffectSelection();
   }
 
-  refreshEffectSelection() {
-    const buttons = this.effectListEl.querySelectorAll('.effect-btn');
-
+  toggleEffectSelection(index) {
+    this.lastToggledIndex = index;
     if (!this.isMultiStack) {
-      this.activeEffectsMap.forEach(effect => effect.destroy());
-      this.activeEffectsMap.clear();
-
-      if (this.singleActiveIndex >= 0) {
-        const EffectClass = this.effectsRegistry[this.singleActiveIndex];
-        const effectInstance = new EffectClass(this.scene, this.camera, this.renderer);
-        if (this.uploadedTexture && typeof effectInstance.onTextureUpdated === 'function') {
-          effectInstance.onTextureUpdated(this.uploadedTexture);
-        }
-        this.activeEffectsMap.set(this.singleActiveIndex, effectInstance);
+      if (this.singleActiveIndex !== index) {
+        this.clearEffects();
+        this.singleActiveIndex = index;
+        this.activeEffectsMap.set(index, this.createEffect(index));
       }
-
-      buttons.forEach((btn, i) => {
-        btn.classList.toggle('active', i === this.singleActiveIndex);
-      });
+    } else if (this.activeEffectsMap.has(index)) {
+      this.activeEffectsMap.get(index).destroy();
+      this.activeEffectsMap.delete(index);
     } else {
-      buttons.forEach((btn, i) => {
-        btn.classList.toggle('active', this.activeEffectsMap.has(i));
-      });
+      this.activeEffectsMap.set(index, this.createEffect(index));
     }
+    this.refreshEffectSelection();
+  }
 
+  selectEffect(index) {
+    this.toggleEffectSelection(index);
+  }
+
+  refreshEffectSelection() {
+    this.effectListEl.querySelectorAll('.effect-btn').forEach((btn, i) => {
+      btn.classList.toggle('active', this.activeEffectsMap.has(i));
+    });
     this.rebuildGUI();
   }
 
@@ -133,34 +159,25 @@ export class VisualizerHarness {
     if (this.gui) this.gui.destroy();
     this.gui = new GUI({ container: this.guiContainer, title: 'Effect Parameters' });
 
-    this.activeEffectsMap.forEach((effectInstance, index) => {
+    this.addFolder('🃏 Base Card', Stage.getParameterSchema(), this.stage.params, () => this.stage.applyParams());
+
+    this.activeEffectsMap.forEach((effect, index) => {
       const EffectClass = this.effectsRegistry[index];
-      const folder = this.gui.addFolder(EffectClass.label);
-      const schema = EffectClass.getParameterSchema();
-
-      schema.forEach(item => {
-        effectInstance.params[item.name] = item.default;
-        let controller;
-
-        if (item.type === 'color') {
-          controller = folder.addColor(effectInstance.params, item.name).name(item.label);
-        } else {
-          controller = folder.add(effectInstance.params, item.name, item.min, item.max, item.step).name(item.label);
-        }
-
-        controller.onChange(val => {
-          effectInstance.params[item.name] = val;
-          effectInstance.onParamsUpdated();
-        });
-      });
-
-      effectInstance.onParamsUpdated();
+      this.addFolder(EffectClass.label, EffectClass.getParameterSchema(), effect.params, () => effect.onParamsUpdated());
     });
   }
 
-  selectEffect(index) {
-    this.singleActiveIndex = index;
-    this.refreshEffectSelection();
+  addFolder(title, schema, params, onChange) {
+    const folder = this.gui.addFolder(title);
+    schema.forEach(item => {
+      const controller = item.type === 'color'
+        ? folder.addColor(params, item.name)
+        : item.type === 'boolean'
+          ? folder.add(params, item.name)
+          : folder.add(params, item.name, item.min, item.max, item.step);
+      controller.name(item.label).onChange(onChange);
+    });
+    return folder;
   }
 
   onResize() {
@@ -173,10 +190,11 @@ export class VisualizerHarness {
 
   animate() {
     requestAnimationFrame(this.animate);
-    const delta = this.clock.getDelta();
+    const delta = Math.min(this.clock.getDelta(), 0.1); // don't jump after a background tab
     const elapsedTime = this.clock.getElapsedTime();
 
     this.activeEffectsMap.forEach(effect => effect.update(elapsedTime, delta));
+    this.stage.update(delta);
 
     this.renderer.render(this.scene, this.camera);
 
