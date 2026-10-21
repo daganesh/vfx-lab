@@ -1,10 +1,10 @@
-// src/effects/HolographicFoilEffect.js
 import * as THREE from 'three';
 import { BaseEffect } from './BaseEffect.js';
 
 export class HolographicFoilEffect extends BaseEffect {
   static id = 'holographic-foil';
   static label = '✨ Legendary Holographic Foil';
+  static attach = 'card';
 
   static getParameterSchema() {
     return [
@@ -14,11 +14,11 @@ export class HolographicFoilEffect extends BaseEffect {
     ];
   }
 
-  constructor(scene, camera, renderer, sharedTarget) {
-    super(scene, camera, renderer, sharedTarget);
-    this.camera.position.set(0, 0, 6.5);
+  constructor(stage) {
+    super(stage);
+    this.phase = 0;
 
-    this.shaderMaterial = new THREE.ShaderMaterial({
+    this.material = new THREE.ShaderMaterial({
       uniforms: {
         uTime: { value: 0 },
         uFoilFrequency: { value: 8.0 },
@@ -26,11 +26,14 @@ export class HolographicFoilEffect extends BaseEffect {
       },
       vertexShader: `
         varying vec2 vUv;
-        varying vec3 vNormal;
+        varying vec3 vNormalV;
+        varying vec3 vViewDir;
         void main() {
           vUv = uv;
-          vNormal = normalize(normalMatrix * normal);
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          vec4 mv = modelViewMatrix * vec4(position, 1.0);
+          vNormalV = normalize(normalMatrix * normal);
+          vViewDir = normalize(-mv.xyz);
+          gl_Position = projectionMatrix * mv;
         }
       `,
       fragmentShader: `
@@ -38,28 +41,39 @@ export class HolographicFoilEffect extends BaseEffect {
         uniform float uFoilFrequency;
         uniform float uIridescence;
         varying vec2 vUv;
+        varying vec3 vNormalV;
+        varying vec3 vViewDir;
 
         void main() {
-          vec3 rainbowColor = 0.5 + 0.5 * cos(uTime + vUv.xyx * uFoilFrequency + vec3(0, 2, 4));
-          gl_FragColor = vec4(rainbowColor * uIridescence, 0.4);
+          // Tilting the card shifts the hue, like real foil.
+          float fres = 1.0 - abs(dot(normalize(vNormalV), normalize(vViewDir)));
+          float hue = (vUv.x + vUv.y) * uFoilFrequency * 0.15 + fres * 2.0 + uTime * 0.15;
+          vec3 rainbow = 0.5 + 0.5 * cos(6.28318 * (hue + vec3(0.0, 0.33, 0.67)));
+          // Diagonal glint sweeping across the face.
+          float sweep = pow(max(0.0, 1.0 - abs(fract(vUv.x * 0.8 - vUv.y * 0.4 - uTime * 0.12) - 0.5) * 6.0), 3.0);
+          gl_FragColor = vec4(rainbow * uIridescence + sweep, 0.28);
         }
       `,
       transparent: true,
+      depthWrite: false,
       blending: THREE.AdditiveBlending
     });
 
-    const foilGeo = new THREE.PlaneGeometry(2.5, 3.5);
-    this.foilMesh = new THREE.Mesh(foilGeo, this.shaderMaterial);
-    this.foilMesh.position.z = 0.03;
+    this.foilMesh = new THREE.Mesh(new THREE.PlaneGeometry(2.5, 3.5), this.material);
+    this.foilMesh.renderOrder = 1;
     this.group.add(this.foilMesh);
   }
 
   onParamsUpdated() {
-    this.shaderMaterial.uniforms.uFoilFrequency.value = this.params.foilFrequency;
-    this.shaderMaterial.uniforms.uIridescence.value = this.params.iridescenceIntensity;
+    this.material.uniforms.uFoilFrequency.value = this.params.foilFrequency;
+    this.material.uniforms.uIridescence.value = this.params.iridescenceIntensity;
   }
 
   update(time, delta) {
-    this.shaderMaterial.uniforms.uTime.value = time * (this.params.foilSpeed || 1.5);
+    this.phase += delta * this.params.foilSpeed;
+    this.material.uniforms.uTime.value = this.phase;
+    // Track the shared card's size.
+    this.foilMesh.scale.x = this.stage.params.cardWidth / 2.5;
+    this.foilMesh.position.z = this.stage.params.cardDepth / 2 + 0.004;
   }
 }

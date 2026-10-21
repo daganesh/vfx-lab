@@ -1,34 +1,36 @@
 import * as THREE from 'three';
 
+// Effects are layers on a shared Stage.
+//   static attach = 'card'  -> group is a child of the card pivot (moves/flips with the card)
+//   static attach = 'world' -> group is a child of the scene (particles, pitch, bolts)
 export class BaseEffect {
-  constructor(scene, camera, renderer) {
-    this.scene = scene;
-    this.camera = camera;
-    this.renderer = renderer;
-    this.group = new THREE.Group();
-    this.scene.add(this.group);
-    this.params = {};
-  }
+  static attach = 'world';
+  static category = 'card';
 
   static getParameterSchema() {
     return [];
   }
 
+  constructor(stage) {
+    this.stage = stage;
+    this.params = {};
+    this.constructor.getParameterSchema().forEach(item => { this.params[item.name] = item.default; });
+
+    this.group = new THREE.Group();
+    this.parent = this.constructor.attach === 'card' ? stage.cardPivot : stage.scene;
+    this.parent.add(this.group);
+  }
+
   onParamsUpdated() {}
-  onTextureUpdated(texture) {}
   update(time, delta) {}
 
   destroy() {
-    this.scene.remove(this.group);
+    this.stage.clearCameraOverride(this);
+    this.parent.remove(this.group);
     this.group.traverse(child => {
-      if (child.geometry) child.geometry.dispose();
-      if (child.material) {
-        if (Array.isArray(child.material)) {
-          child.material.forEach(m => m.dispose());
-        } else {
-          child.material.dispose();
-        }
-      }
+      if (child.geometry && !child.geometry.userData.shared) child.geometry.dispose();
+      const mats = Array.isArray(child.material) ? child.material : child.material ? [child.material] : [];
+      mats.forEach(m => { if (!m.userData.shared) m.dispose(); });
     });
   }
 }
